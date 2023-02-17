@@ -34,10 +34,10 @@ class TestCase1(unittest.TestCase):
         with mock.patch('osf.models.BaseFileNode', mock_base_file_node):
             with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String'}):
                 mock_requests.get.return_value = self.resp
-                context = edit_by_onlyoffice(file_id_ver="ABCDEFG-01")
+                context = edit_by_onlyoffice(file_id_ver='ABCDEFG-01')
                 # print('wopi_url = {}'.format(context['wopi_url']))
                 # print('access_token = {}'.format(context['access_token']))
-                
+
                 assert_equal(context['wopi_url'], 'http://192.168.1.1:8002/hosting/wopi/word/view?rs=ja-jp&ui=ja-jp&wopisrc=http://server.rdm.nii.ac.jp/wopi/files/ABCDEFG-01', 'edit_by_onlyoffice test1')
                 assert_equal(context['access_token'], 'Cookie String', 'edit_by_onlyoffice test2')
 
@@ -52,7 +52,7 @@ class TestCase1(unittest.TestCase):
         with mock.patch('osf.models.BaseFileNode', mock_base_file_node):
             with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String'}):
                 mock_requests.get.return_value = self.resp
-                context = edit_by_collabora(file_id_ver="ABCDEFG-01")
+                context = edit_by_collabora(file_id_ver='ABCDEFG-01')
                 # print('wopi_url = {}'.format(context['wopi_url']))
                 # print('access_token = {}'.format(context['access_token']))
 

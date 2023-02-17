@@ -16,7 +16,7 @@
             overflow: hidden;
             -ms-content-zooming: none;
         }
-        
+
         #office_frame {
             width: 100%;
             height: 100%;

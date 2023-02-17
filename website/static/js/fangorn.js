@@ -1450,7 +1450,7 @@ function _createFile(event, dismissCallback, helpText) {
     // var extra = {};
     // var path = parent.data.path || '/';
     // var options = {name: val, kind: 'file', waterbutlerURL: parent.data.waterbutlerURL};
-    var options = {name: val}
+    var options = {name: val};
 
     if ((parent.data.provider === 'github') || (parent.data.provider === 'gitlab')) {
         // extra.branch = parent.data.branch;

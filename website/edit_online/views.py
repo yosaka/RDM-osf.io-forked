@@ -77,7 +77,7 @@ def edit_by_collabora(**kwargs):
         wopi_src_host = settings.WOPI_SRC_HOST
         wopi_src = f'{wopi_src_host}/wopi/files/{file_id}-{file_version}'
         logger.info('edit_online.index_view wopi_src = {}'.format(wopi_src))
-        wopi_url = wopi_client_url + "access_token=" + access_token + '&WOPISrc=' + wopi_src
+        wopi_url = wopi_client_url + 'access_token=' + access_token + '&WOPISrc=' + wopi_src
 
     logger.info('edit_by_collabora wopi_url = {}'.format(wopi_url))
 

@@ -38,8 +38,8 @@ class TestCase1(unittest.TestCase):
                 mock_get_file_info = mock.MagicMock()
                 mock_get_file_info.return_value = self.file_info
                 with mock.patch('views._get_file_info', mock_get_file_info):
-                    with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String', 'User_Agent': 'COOLWSD'}, query_string={'access_token': "Token"}):
-                        res = check_file_info(file_id_ver="ABCDEFG-01")
+                    with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String', 'User_Agent': 'COOLWSD'}, query_string={'access_token': 'Token'}):
+                        res = check_file_info(file_id_ver='ABCDEFG-01')
                         #print('{}, {}'.format(res['BaseFileName'], res['Size']))
                         assert_equal(res['BaseFileName'], 'filename.docx')
                         assert_equal(res['Size'], 1234)
@@ -57,8 +57,8 @@ class TestCase1(unittest.TestCase):
                 mock_get_file_info = mock.MagicMock()
                 mock_get_file_info.return_value = self.file_info
                 with mock.patch('views._get_file_info', mock_get_file_info):
-                    with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String', 'User_Agent': 'Node.js'}, query_string={'access_token': "Token"}):
-                        res = check_file_info(file_id_ver="ABCDEFG-01")
+                    with app.test_request_context('/wopi', headers={'Cookie': 'osf=Cookie String', 'User_Agent': 'Node.js'}, query_string={'access_token': 'Token'}):
+                        res = check_file_info(file_id_ver='ABCDEFG-01')
                         #print('{}, {}'.format(res['BaseFileName'], res['Size']))
                         assert_equal(res['BaseFileName'], 'filename.docx')
                         assert_equal(res['Size'], 1234)
