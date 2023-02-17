@@ -1994,7 +1994,6 @@ def make_url_map(app):
 
     ], prefix='/api/v1')
 
-
     # Edit Online  iframe page
     #process_rules(app, [
     #    Rule(
@@ -2033,12 +2032,11 @@ def make_url_map(app):
 
     # WOPI
     process_rules(app, [
-        Rule( [ '/files/<file_id_ver>' ], ['get'],  wopi_views.check_file_info, json_renderer, ),
-        Rule( [ '/files/<file_id_ver>' ], ['post'], wopi_views.lock_file, json_renderer, ),
-        Rule( [ '/files/<file_id_ver>/contents' ], ['get', 'post'], wopi_views.file_content_view, json_renderer, ),
+        Rule(['/files/<file_id_ver>'], ['get'], wopi_views.check_file_info, json_renderer,),
+        Rule(['/files/<file_id_ver>'], ['post'], wopi_views.lock_file, json_renderer,),
+        Rule(['/files/<file_id_ver>/contents'], ['get', 'post'], wopi_views.file_content_view, json_renderer,),
     ], prefix='/wopi')
- 
- 
+
     # Set up static routing for addons and providers
     # NOTE: We use nginx to serve static addon assets in production
     addon_base_path = os.path.abspath('addons')
