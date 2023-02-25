@@ -164,7 +164,7 @@ def file_content_view(**kwargs):
             return Response(response='Not possible to get the file content.', status=401)
 
         data = request.data
-        wburl = file_node.generate_waterbutler_url(direct=None, _internal=True)
+        wburl = file_node.generate_waterbutler_url(direct=None, _internal=True) + '?kind=file'
         logger.debug('wburl = {}'.format(wburl))
         response = requests.put(
             wburl,
