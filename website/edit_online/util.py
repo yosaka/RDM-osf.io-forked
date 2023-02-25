@@ -54,12 +54,12 @@ def _ext_to_app_name_collabora(ext):
 
 def get_onlyoffice_url(server, mode, ext):
     response = requests.get(server + '/hosting/discovery')
-    discovery = response.content
+    discovery = response.text
     if not discovery:
         logger.error('No able to retrieve the discovery.xml for onlyoffice.')
         return
 
-    parsed = etree.fromstring(discovery)
+    parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
         logger.error('The retrieved discovery.xml file is not a valid XML file')
         return
@@ -93,7 +93,7 @@ def get_collabora_url(server, mode, ext):
         logger.error('No able to retrieve the discovery.xml for collabora.')
         return
 
-    parsed = etree.fromstring(discovery)
+    parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
         logger.error('The retrieved discovery.xml file is not a valid XML file')
         return
