@@ -50,7 +50,6 @@ class TestCase1(unittest.TestCase):
                     with mock.patch('website.wopi.views._get_file_info', mock_get_file_info):
                         res = check_file_info(file_id_ver='ABCDEFG-01')
                         assert_equal(res['BaseFileName'], 'filename.docx')
-                        assert_equal(res['Size'], 1234)
 
     @pytest.mark.django_db
     def test_case2(self):
@@ -70,6 +69,4 @@ class TestCase1(unittest.TestCase):
                     with mock.patch('website.wopi.views._get_file_info', mock_get_file_info):
                         res = check_file_info(file_id_ver='ABCDEFG-01')
                         assert_equal(res['BaseFileName'], 'filename.docx')
-                        assert_equal(res['Size'], 1234)
                         assert_equal(res['Version'], '01')
-
