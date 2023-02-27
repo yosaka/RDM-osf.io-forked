@@ -68,13 +68,11 @@ def check_file_info(**kwargs):
 
     user_info = _get_user_info(access_token)
     file_info = _get_file_info(file_node, file_version, cookies)
-    last_modified = file_info['file_mtime'].split('+')[0] + 'Z'
 
     if user_agent.startswith('Node.js'):
         res = {
             'BaseFileName': file_info['file_name'],
             'Version': file_version,
-            'LastModifiedTime': last_modified,
             #'ReadOnly': True,
             'UserCanReview': True,
             'UserCanWrite': True,
