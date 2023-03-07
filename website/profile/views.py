@@ -39,6 +39,7 @@ from website.profile import utils as profile_utils
 from website.util import api_v2_url, web_url_for, paths
 from website.util.sanitize import escape_html
 from addons.base import utils as addon_utils
+from addons.datasteward.models import UserSettings as DataStewardUserSettings
 from admin.rdm_addons.utils import validate_rdm_addons_allowed
 
 from api.waffle.utils import storage_i18n_flag_active
@@ -415,6 +416,17 @@ def user_addons(auth, **kwargs):
     ret = {
         'addon_settings': addon_utils.get_addons_by_config_type('accounts', user),
     }
+
+    # Create DataSteward addon settings if user is data steward but does not have addon settings
+    if not user.has_addon('datasteward') and user.is_data_steward:
+        user.add_addon('datasteward')
+
+    datasteward_user_settings = user.get_addon('datasteward')
+
+    # DataSteward add-on check to be displayed
+    ret['addon_settings'] = [s for s in ret['addon_settings']
+        if s['addon_short_name'] != 'datasteward' or user.is_data_steward or (datasteward_user_settings and datasteward_user_settings.enabled)]
+
     # RDM
     from admin.rdm_addons import utils as rdm_utils
     rdm_utils.update_with_rdm_addon_settings(ret['addon_settings'], user)
@@ -422,7 +434,7 @@ def user_addons(auth, **kwargs):
     ret['addon_settings'] = [addon for addon in ret['addon_settings'] if addon['is_allowed']]
 
     accounts_addons = [addon for addon in settings.ADDONS_AVAILABLE
-            if 'accounts' in addon.configs and allowed_addon_dict[addon.short_name]]
+            if 'accounts' in addon.configs and allowed_addon_dict.get(addon.short_name)]
     ret.update({
         'addon_enabled_settings': [addon.short_name for addon in accounts_addons],
         'addons_js': collect_user_config_js(accounts_addons),

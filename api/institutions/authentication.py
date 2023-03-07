@@ -12,10 +12,11 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from api.base.authentication import drf
 from api.base import exceptions, settings
+from addons.datasteward.views import enable_datasteward_addon
 
 from framework import sentry
 from framework.auth import get_or_create_user
-from framework.auth.core import get_user
+from framework.auth.core import get_user, Auth
 
 from osf import features
 from osf.models import Institution, UserExtendedData
@@ -414,6 +415,10 @@ class InstitutionAuthentication(BaseAuthentication):
                 # Set user.is_data_steward to True
                 user.is_data_steward = True
                 user.save()
+            addon_user_settings = user.get_addon('datasteward')
+            if addon_user_settings and addon_user_settings.enabled:
+                auth = Auth(user=user)
+                enable_datasteward_addon(auth, is_from_auth=True)
         else:
             # Set user.is_data_steward to False
             user.is_data_steward = False
