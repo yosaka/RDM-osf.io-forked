@@ -9,7 +9,7 @@
         <img class="addon-icon" src=${addon_icon_url}>
         <span data-bind="text: properName">${ addon_full_name }</span>
         <small>
-            <input type="checkbox" class='datasteward-checkbox' data-bind="checked: addon_enabled, click: toggleCheckbox, attr: {disabled: !loaded}"/>
+            <input type="checkbox" class='datasteward-checkbox' data-bind="checked: addon_enabled, enable: loaded, event: {change: toggleCheckbox}"/>
         </small>
     </h4>
 </div>

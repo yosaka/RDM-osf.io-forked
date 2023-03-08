@@ -5,8 +5,6 @@ from rest_framework import status as http_status
 from framework.auth.decorators import must_be_logged_in
 from flask import request
 
-from addons.base import generic_views
-from addons.datasteward.serializer import DataStewardSerializer
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction, DatabaseError, IntegrityError
 from osf.utils.permissions import ADMIN
@@ -20,19 +18,20 @@ SHORT_NAME = 'datasteward'
 FULL_NAME = 'DataSteward'
 OSF_NODE = 'osf.node'
 
-datasteward_get_config = generic_views.get_config(
-    SHORT_NAME,
-    DataStewardSerializer
-)
-
 
 @must_be_logged_in
 def datasteward_user_config_get(auth, **kwargs):
     """View for getting a JSON representation of DataSteward user settings"""
-    addon_user_settings = auth.user.get_addon(SHORT_NAME)
+    user = auth.user
+    addon_user_settings = user.get_addon(SHORT_NAME)
+    addon_user_settings_enabled = addon_user_settings.enabled if addon_user_settings else False
+
+    # If user is not a data steward and does not have add-on enabled before, return HTTP 403
+    if not user.is_data_steward and not addon_user_settings_enabled:
+        return {}, http_status.HTTP_403_FORBIDDEN
 
     return {
-        'enabled': addon_user_settings.enabled if addon_user_settings else False,
+        'enabled': addon_user_settings_enabled,
     }, http_status.HTTP_200_OK
 
 
@@ -41,16 +40,14 @@ def datasteward_user_config_post(auth, **kwargs):
     data = request.get_json()
     enabled = data.get('enabled', None)
     if enabled is None or not isinstance(enabled, bool):
-        # If request's 'enabled' field is not valid then return HTTP 400
+        # If request's 'enabled' field is not valid, return HTTP 400
         return {}, http_status.HTTP_400_BAD_REQUEST
 
-    if not auth.user.is_data_steward:
-        # If user is not a DataSteward then return HTTP 403
-        return {}, http_status.HTTP_403_FORBIDDEN
-
-    addon_user_settings = auth.user.get_addon(SHORT_NAME)
-    if not addon_user_settings:
-        # Failsafe: If user does not have DataSteward add-on settings then return HTTP 403
+    user = auth.user
+    addon_user_settings = user.get_addon(SHORT_NAME)
+    addon_user_settings_enabled = addon_user_settings.enabled if addon_user_settings else False
+    if not user.is_data_steward and not addon_user_settings_enabled:
+        # If user is not a DataSteward and does not have add-on enabled before, return HTTP 403
         return {}, http_status.HTTP_403_FORBIDDEN
 
     # Update add-on user settings

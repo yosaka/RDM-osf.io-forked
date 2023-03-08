@@ -522,43 +522,47 @@ msgstr "Disable"
 msgid "Disabling DataSteward add-on, please do not close this window or go back on your browser."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:6
+#: addons/datasteward/templates/datasteward_result_modal.mako:7
 msgid "DataSteward add-on enabled"
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:7
+#: addons/datasteward/templates/datasteward_result_modal.mako:8
+msgid "DataSteward add-on not enabled"
+msgstr ""
+
+#: addons/datasteward/templates/datasteward_result_modal.mako:10
 msgid "DataSteward add-on disabled"
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:15
+#: addons/datasteward/templates/datasteward_result_modal.mako:18
 msgid "DataSteward add-on enable process is completed."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:18
+#: addons/datasteward/templates/datasteward_result_modal.mako:21
 msgid "DataSteward add-on enable process has failed."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:22
+#: addons/datasteward/templates/datasteward_result_modal.mako:25
 msgid "DataSteward add-on disable process is completed."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:24
+#: addons/datasteward/templates/datasteward_result_modal.mako:27
 msgid "No projects failed to unregister when disabling add-on."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:27
+#: addons/datasteward/templates/datasteward_result_modal.mako:30
 msgid "There were %(count)s projects that could not be unregistered when disabling add-on."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:29
+#: addons/datasteward/templates/datasteward_result_modal.mako:32
 msgid "For more details, download the CSV from the link below and refer to it."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:30
+#: addons/datasteward/templates/datasteward_result_modal.mako:33
 msgid "Please note that you will not be able to refer to this download once the dialog is closed."
 msgstr ""
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:32
+#: addons/datasteward/templates/datasteward_result_modal.mako:35
 msgid "Disable result CSV download"
 msgstr ""
 

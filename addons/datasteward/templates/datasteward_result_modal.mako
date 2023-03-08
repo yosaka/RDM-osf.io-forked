@@ -3,7 +3,10 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 data-bind="if: addon_enabled">${_("DataSteward add-on enabled")}</h3>
+                <h3 data-bind="if: addon_enabled">
+                    <!--ko ifnot: is_process_failed-->${_("DataSteward add-on enabled")}<!--/ko-->
+                    <!--ko if: is_process_failed-->${_("DataSteward add-on not enabled")}<!--/ko-->
+                </h3>
                 <h3 data-bind="ifnot: addon_enabled">${_("DataSteward add-on disabled")}</h3>
             </div>
 

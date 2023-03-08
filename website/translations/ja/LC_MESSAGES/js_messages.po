@@ -521,6 +521,16 @@ msgstr "禁止"
 msgid "Strings did not match"
 msgstr "文字列が一致しませんでした"
 
+#: addons/datasteward/static/datastewardUserConfig.js:98
+#: addons/datasteward/static/datastewardUserConfig.js:99
+msgid "Cannot disable DataSteward add-on"
+msgstr "データ管理責任者アドオンを無効にできません"
+
+#: addons/datasteward/static/datastewardUserConfig.js:134
+#: addons/datasteward/static/datastewardUserConfig.js:135
+msgid "Cannot get DataSteward add-on settings"
+msgstr "データ管理責任者アドオン設定を取得できません"
+
 #: admin/static/js/rdm_addons/dataverse/dataverseRdmConfig.js:26
 #: admin/static/js/rdm_addons/owncloud/owncloudRdmConfig.js:19
 msgid "Other (Please Specify)"

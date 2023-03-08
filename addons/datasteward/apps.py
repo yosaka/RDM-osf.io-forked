@@ -18,8 +18,6 @@ class DataStewardAddonAppConfig(BaseAddonAppConfig):
     configs = ['accounts']
     user_settings_template = os.path.join(TEMPLATE_PATH, 'datasteward_user_settings.mako')
 
-    actions = ()
-
     @property
     def routes(self):
         from .routes import api_routes

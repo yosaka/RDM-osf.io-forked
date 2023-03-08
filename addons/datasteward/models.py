@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 from addons.base.models import (BaseUserSettings, )
-from addons.datasteward.serializer import DataStewardSerializer
 from django.db import models
-
-_provider = 'datasteward'
 
 
 class DataStewardProvider(object):
-    """An alternative to `ExternalProvider` not tied to OAuth"""
     name = 'DataSteward'
     short_name = 'datasteward'
-    serializer = DataStewardSerializer
 
     def __init__(self, account=None):
         super(DataStewardProvider, self).__init__()  # this does exactly nothing...
@@ -26,6 +21,5 @@ class DataStewardProvider(object):
 
 class UserSettings(BaseUserSettings):
     oauth_provider = DataStewardProvider
-    serializer = DataStewardSerializer
 
     enabled = models.BooleanField(default=False)

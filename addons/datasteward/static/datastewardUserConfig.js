@@ -6,12 +6,9 @@
 var ko = require('knockout');
 var $ = require('jquery');
 var Raven = require('raven-js');
-var bootbox = require('bootbox');
 require('js/osfToggleHeight');
 
-var language = require('js/osfLanguage').Addons.dataverse;
 var osfHelpers = require('js/osfHelpers');
-var addonSettings = require('js/addonSettings');
 
 var $modal = $('#datastewardModal');
 var $resultModal = $('#datastewardResultModal');
@@ -42,6 +39,7 @@ function ViewModel(url) {
             self.is_processing(false);
             $resultModal.modal('show');
         }
+        self.changeMessage('','');
     });
 
     $resultModal.on("hidden.bs.modal", function () {
@@ -98,8 +96,8 @@ function ViewModel(url) {
             $modal.modal('hide');
         }).fail(function (xhr, textStatus, error) {
             self.is_processing(false);
-            self.changeMessage(language.userSettingsError, 'text-danger');
-            Raven.captureMessage('Could not disable DataSteward add-on', {
+            self.changeMessage(_('Cannot disable DataSteward add-on'), 'text-danger');
+            Raven.captureMessage(_('Cannot disable DataSteward add-on'), {
                 extra: {
                     url: url,
                     textStatus: textStatus,
@@ -134,8 +132,8 @@ function ViewModel(url) {
             self.addon_enabled(enabled);
             self.loaded(true);
         }).fail(function (xhr, textStatus, error) {
-            self.changeMessage(language.userSettingsError, 'text-danger');
-            Raven.captureMessage('Could not GET DataSteward settings', {
+            self.changeMessage(_('Cannot get DataSteward add-on settings'), 'text-danger');
+            Raven.captureMessage(_('Cannot get DataSteward add-on settings'), {
                 extra: {
                     url: url,
                     textStatus: textStatus,

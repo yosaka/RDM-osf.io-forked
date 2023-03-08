@@ -525,43 +525,47 @@ msgstr "無効化"
 msgid "Disabling DataSteward add-on, please do not close this window or go back on your browser."
 msgstr "データ管理責任者アドオンを無効にしています。このウィンドウを閉じたり、ブラウザに戻ったりしないでください。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:6
+#: addons/datasteward/templates/datasteward_result_modal.mako:7
 msgid "DataSteward add-on enabled"
 msgstr "データ管理責任者アドオンが有効になっています"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:7
+#: addons/datasteward/templates/datasteward_result_modal.mako:8
+msgid "DataSteward add-on not enabled"
+msgstr "データ管理責任者アドオンが有効になっていません"
+
+#: addons/datasteward/templates/datasteward_result_modal.mako:10
 msgid "DataSteward add-on disabled"
 msgstr "データ管理責任者アドオンが無効になっています"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:15
+#: addons/datasteward/templates/datasteward_result_modal.mako:18
 msgid "DataSteward add-on enable process is completed."
 msgstr "データ管理責任者アドオンの有効化が完了しました。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:18
+#: addons/datasteward/templates/datasteward_result_modal.mako:21
 msgid "DataSteward add-on enable process has failed."
 msgstr "データ管理責任者アドオンの有効化プロセスが失敗しました。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:22
+#: addons/datasteward/templates/datasteward_result_modal.mako:25
 msgid "DataSteward add-on disable process is completed."
 msgstr "データ管理責任者アドオンの無効化が完了しました。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:24
+#: addons/datasteward/templates/datasteward_result_modal.mako:27
 msgid "No projects failed to unregister when disabling add-on."
 msgstr "無効化時に登録解除ができなかったプロジェクトはありませんでした。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:27
+#: addons/datasteward/templates/datasteward_result_modal.mako:30
 msgid "There were %(count)s projects that could not be unregistered when disabling add-on."
 msgstr "無効化時に登録解除ができなかったプロジェクトが%(count)s件ありました。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:29
+#: addons/datasteward/templates/datasteward_result_modal.mako:32
 msgid "For more details, download the CSV from the link below and refer to it."
 msgstr "詳細は次のリンクからCSVをダウンロードして参照してください。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:30
+#: addons/datasteward/templates/datasteward_result_modal.mako:33
 msgid "Please note that you will not be able to refer to this download once the dialog is closed."
 msgstr "本ダウンロードは、ポップアップを閉じると参照できなくなりますので注意してください。"
 
-#: addons/datasteward/templates/datasteward_result_modal.mako:32
+#: addons/datasteward/templates/datasteward_result_modal.mako:35
 msgid "Disable result CSV download"
 msgstr "無効化結果CSVダウンロード"
 

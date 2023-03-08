@@ -415,6 +415,8 @@ class InstitutionAuthentication(BaseAuthentication):
                 # Set user.is_data_steward to True
                 user.is_data_steward = True
                 user.save()
+
+            # Get user DataSteward add-on setings
             addon_user_settings = user.get_addon('datasteward')
             if addon_user_settings and addon_user_settings.enabled:
                 auth = Auth(user=user)
