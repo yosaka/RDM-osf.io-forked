@@ -16,7 +16,7 @@ from addons.datasteward.views import enable_datasteward_addon
 
 from framework import sentry
 from framework.auth import get_or_create_user
-from framework.auth.core import get_user, Auth
+from framework.auth.core import get_user
 
 from osf import features
 from osf.models import Institution, UserExtendedData
@@ -419,8 +419,7 @@ class InstitutionAuthentication(BaseAuthentication):
             # Get user DataSteward add-on setings
             addon_user_settings = user.get_addon('datasteward')
             if addon_user_settings and addon_user_settings.enabled:
-                auth = Auth(user=user)
-                enable_datasteward_addon(auth, is_from_auth=True)
+                enable_datasteward_addon(user, is_authenticating=True)
         else:
             # Set user.is_data_steward to False
             user.is_data_steward = False
