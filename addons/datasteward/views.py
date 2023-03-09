@@ -5,7 +5,7 @@ from rest_framework import status as http_status
 from framework.auth.decorators import must_be_logged_in
 from flask import request
 
-from django.db import transaction, DatabaseError, IntegrityError
+from django.db import transaction
 from osf.utils.permissions import ADMIN
 
 import logging
@@ -95,29 +95,28 @@ def enable_datasteward_addon(user, is_authenticating=False, **kwargs):
                 try:
                     if not project.is_contributor(user):
                         # If user is not project's contributor, add user to contributor list
-                        add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=None, log=False, save=False)
+                        add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=None, log=False, save=True)
                         if add_result:
                             contributor = project.contributor_class.objects.get(user=user, node=project)
                             contributor.is_data_steward = True
                             contributor.save()
                     else:
-                        # Otherwise, promote user's permission to Project Administrator
                         # Get contributor by user's id and project's id
                         contributor = project.contributor_class.objects.get(user=user, node=project)
                         if not contributor.is_data_steward:
-                            # If contributor's permission is not set by DataSteward add-on
+                            # If contributor's current permission is not set by DataSteward add-on
                             # set is_data_steward to True and data_steward_old_permission to contributor's current permission
                             contributor.data_steward_old_permission = contributor.permission
                             contributor.is_data_steward = True
-                        project.update_contributor(user, permission=ADMIN, visible=True, auth=None, save=False, check_admin_permission=False)
-                        contributor.save()
-                except (DatabaseError, IntegrityError) as e:
-                    # If database error is raised, log error to server
-                    logger.warning("Project {}: error raised while enabling DataSteward add-on with {}".format(project._id, e))
+                            contributor.save()
+
+                        if contributor.permission != ADMIN:
+                            # If contributor's permission is not Project Administrator, update user's permission to Project Administrator
+                            project.update_contributor(user, permission=ADMIN, visible=None, auth=None, save=True, check_admin_permission=False)
                 except Exception as e:
-                    # If other error is raised while running on "Configure add-on accounts" screen, raise error
+                    # If error is raised while running on "Configure add-on accounts" screen, raise error
                     # Otherwise, do nothing
-                    logger.error("Project {}: error raised while enabling DataSteward add-on with {}".format(project._id, e))
+                    logger.error('Project {}: error raised while enabling DataSteward add-on with {}'.format(project._id, e))
                     if not is_authenticating:
                         raise e
 
@@ -150,8 +149,8 @@ def disable_datasteward_addon(user, **kwargs):
 
                 if contributor.data_steward_old_permission is not None:
                     # If user had contributor's old permission before enabling add-on in project, restore that permission
-                    project.update_contributor(user, permission=contributor.data_steward_old_permission, visible=True,
-                                               auth=None, save=False, check_admin_permission=False)
+                    project.update_contributor(user, permission=contributor.data_steward_old_permission, visible=None,
+                                               auth=None, save=True, check_admin_permission=False)
                     contributor.is_data_steward = False
                     contributor.data_steward_old_permission = None
                     contributor.save()
@@ -162,7 +161,7 @@ def disable_datasteward_addon(user, **kwargs):
                         skipped_projects.append(project)
             except Exception as e:
                 # If error is raised, log warning and add project to skipped project list
-                logger.warning("Project {}: error raised while disabling DataSteward add-on with {}".format(project._id, e))
+                logger.warning('Project {}: error raised while disabling DataSteward add-on with {}'.format(project._id, e))
                 skipped_projects.append(project)
 
     return skipped_projects

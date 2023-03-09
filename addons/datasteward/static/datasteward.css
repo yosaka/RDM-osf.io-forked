@@ -2,6 +2,6 @@
     float: right;
 }
 
-.datasteward-line-break {
-    white-space: break-spaces;
+.datasteward-indent {
+    padding-left: 28px;
 }

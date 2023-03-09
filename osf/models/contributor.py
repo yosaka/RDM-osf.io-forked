@@ -6,10 +6,10 @@ from osf.utils import permissions
 
 
 CONTRIBUTOR_PERMISSION_CHOICES = (
-    ("NULL", None),
-    ("READ", "read"),
-    ("WRITE", "write"),
-    ("ADMIN", "admin"),
+    ('NULL', None),
+    ('READ', 'read'),
+    ('WRITE', 'write'),
+    ('ADMIN', 'admin'),
 )
 
 

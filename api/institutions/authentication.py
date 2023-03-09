@@ -419,6 +419,7 @@ class InstitutionAuthentication(BaseAuthentication):
             # Get user DataSteward add-on setings
             addon_user_settings = user.get_addon('datasteward')
             if addon_user_settings and addon_user_settings.enabled:
+                # If user enabled DataSteward add-on, restart enable datasteward add-on to add missing projects if have
                 enable_datasteward_addon(user, is_authenticating=True)
         else:
             # Set user.is_data_steward to False
