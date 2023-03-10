@@ -1,4 +1,4 @@
-"""Views for the node settings page."""
+"""Views for the add-on's user settings page."""
 # -*- coding: utf-8 -*-
 from rest_framework import status as http_status
 
@@ -34,6 +34,7 @@ def datasteward_user_config_get(auth, **kwargs):
 
 @must_be_logged_in
 def datasteward_user_config_post(auth, **kwargs):
+    """View for post DataSteward user settings with enabled value"""
     data = request.get_json()
     enabled = data.get('enabled', None)
     if enabled is None or not isinstance(enabled, bool):
@@ -41,14 +42,12 @@ def datasteward_user_config_post(auth, **kwargs):
         return {}, http_status.HTTP_400_BAD_REQUEST
 
     user = auth.user
-    addon_user_settings = user.get_addon(SHORT_NAME)
-    addon_user_settings_enabled = addon_user_settings.enabled if addon_user_settings else False
-
-    # If user is not a DataSteward and does not have add-on enabled before, return HTTP 403
-    if not user.is_data_steward and not addon_user_settings_enabled:
+    # If user is not a DataSteward when enabling DataSteward add-on, return HTTP 403
+    if not user.is_data_steward and enabled:
         return {}, http_status.HTTP_403_FORBIDDEN
 
     # Update add-on user settings
+    addon_user_settings = user.get_addon(SHORT_NAME)
     addon_user_settings.enabled = enabled
     addon_user_settings.save()
 
@@ -81,6 +80,7 @@ def datasteward_user_config_post(auth, **kwargs):
 
 
 def enable_datasteward_addon(user, is_authenticating=False, **kwargs):
+    """Start enable DataSteward add-on process"""
     # Check if user has any affiliated institutions
     affiliated_institutions = user.affiliated_institutions.all()
     if not affiliated_institutions:
@@ -124,6 +124,7 @@ def enable_datasteward_addon(user, is_authenticating=False, **kwargs):
 
 
 def disable_datasteward_addon(user, **kwargs):
+    """Start disable DataSteward add-on process"""
     # Check if user has any affiliated institutions
     affiliated_institutions = user.affiliated_institutions.all()
     if not affiliated_institutions:
@@ -158,6 +159,8 @@ def disable_datasteward_addon(user, **kwargs):
                     # Otherwise, remove contributor from project
                     remove_result = project.remove_contributor(user, auth=None, log=False)
                     if not remove_result:
+                        # If user is not remove from project, log warning and add project to skipped project list
+                        logger.warning('Cannot remove user from project {}'.format(project._id))
                         skipped_projects.append(project)
             except Exception as e:
                 # If error is raised, log warning and add project to skipped project list

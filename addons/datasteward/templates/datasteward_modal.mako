@@ -7,7 +7,7 @@
                 <h3>${_('Enable DataSteward add-on')}</h3>
             </div>
 
-            <form data-bind="ifnot: is_processing">
+            <form data-bind="ifnot: is_waiting">
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-sm-12">
@@ -47,7 +47,7 @@
                 </div><!-- end modal-footer -->
             </form>
 
-            <div data-bind="if: is_processing">
+            <div data-bind="if: is_waiting">
                 <div class="spinner-loading-wrapper">
                     <div class="ball-scale ball-scale-blue text-center">
                         <div></div>
@@ -66,7 +66,7 @@
                 <h3>${_('Disable DataSteward add-on')}</h3>
             </div>
 
-            <form data-bind="ifnot: is_processing">
+            <form data-bind="ifnot: is_waiting">
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-sm-12">
@@ -103,7 +103,7 @@
                 </div><!-- end modal-footer -->
             </form>
 
-            <div data-bind="if: is_processing">
+            <div data-bind="if: is_waiting">
                 <div class="spinner-loading-wrapper">
                     <div class="ball-scale ball-scale-blue text-center">
                         <div></div>

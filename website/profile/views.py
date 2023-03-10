@@ -421,7 +421,7 @@ def user_addons(auth, **kwargs):
         user.add_addon('datasteward')
     datasteward_user_settings = user.get_addon('datasteward')
 
-    # Check DataSteward add-on status to be displayed
+    # Check whether DataSteward add-on is allowed to be displayed or not
     datasteward_add_on_enabled = datasteward_user_settings.enabled if datasteward_user_settings else False
     ret['addon_settings'] = [s for s in ret['addon_settings']
         if s['addon_short_name'] != 'datasteward' or user.is_data_steward or datasteward_add_on_enabled]

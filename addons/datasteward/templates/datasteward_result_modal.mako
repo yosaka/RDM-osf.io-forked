@@ -4,8 +4,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 data-bind="if: addon_enabled">
-                    <!--ko ifnot: is_process_failed-->${_('DataSteward add-on enabled')}<!--/ko-->
-                    <!--ko if: is_process_failed-->${_('DataSteward add-on not enabled')}<!--/ko-->
+                    <!--ko ifnot: change_add_on_failed-->${_('DataSteward add-on enabled')}<!--/ko-->
+                    <!--ko if: change_add_on_failed-->${_('DataSteward add-on not enabled')}<!--/ko-->
                 </h3>
                 <h3 data-bind="ifnot: addon_enabled">${_('DataSteward add-on disabled')}</h3>
             </div>
@@ -14,10 +14,10 @@
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-sm-12" data-bind="if: addon_enabled">
-                            <div data-bind="ifnot: is_process_failed">
+                            <div data-bind="ifnot: change_add_on_failed">
                                 ${_('DataSteward add-on enable process is completed.')}
                             </div>
-                            <div data-bind="if: is_process_failed">
+                            <div data-bind="if: change_add_on_failed">
                                 ${_('DataSteward add-on enable process has failed.')}
                             </div>
                         </div>

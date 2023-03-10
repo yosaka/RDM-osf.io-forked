@@ -18,51 +18,60 @@ function ViewModel(url) {
     var self = this;
 
     self.properName = 'DataSteward';
-    self.dialog_closed_by_user = ko.observable(false);
 
     // Whether the initial data has been loaded
+    self.is_waiting = ko.observable(false);
+
+    // Checkbox value
     self.addon_enabled = ko.observable(false);
-    self.loaded = ko.observable(false);
-    self.is_processing = ko.observable(false);
-    self.is_process_failed = ko.observable(false);
+
+    // Whether add-on change failed or not
+    self.change_add_on_failed = ko.observable(false);
+
+    // List of skipped projects while disabling DataSteward add-on
     self.skipped_projects = ko.observable([]);
+
+    // Whether modal is closed by user or programmatically closed
+    self.dialog_closed_by_user = ko.observable(false);
 
     // Flashed messages
     self.message = ko.observable('');
     self.messageClass = ko.observable('text-info');
 
+    // Modal hidden events
     $modal.on("hidden.bs.modal", function () {
         if (self.dialog_closed_by_user()) {
             self.addon_enabled(!self.addon_enabled());
             self.dialog_closed_by_user(false);
         } else {
-            self.is_processing(false);
+            self.is_waiting(false);
             $resultModal.modal('show');
         }
         self.changeMessage('','');
     });
 
     $resultModal.on("hidden.bs.modal", function () {
-        if (self.is_process_failed()) {
+        if (self.change_add_on_failed()) {
             self.addon_enabled(!self.addon_enabled());
-            self.is_process_failed(false);
+            self.change_add_on_failed(false);
         }
         self.skipped_projects([]);
     });
 
-    /** Reset all fields from Dataverse host selection modal */
+    /** Close confirm modal */
     self.clearModal = function() {
         $modal.modal('hide');
         self.dialog_closed_by_user(true);
     };
 
+    /** Close result modal */
     self.clearResultModal = function() {
         $resultModal.modal('hide');
     }
 
-    /** Enable add on **/
+    /** Enable add on */
     self.enableAddon = function() {
-        self.is_processing(true);
+        self.is_waiting(true);
         var data = {
             'enabled': self.addon_enabled()
         };
@@ -74,14 +83,26 @@ function ViewModel(url) {
         }).done(function (response) {
             $modal.modal('hide');
         }).fail(function (xhr, textStatus, error) {
-            self.is_process_failed(true);
-            $modal.modal('hide');
+            if (xhr.status === 403) {
+                self.is_waiting(false);
+                self.changeMessage(_('You do not have permission to perform this action.'), 'text-danger');
+                Raven.captureMessage(_('You do not have permission to perform this action.'), {
+                    extra: {
+                        url: url,
+                        textStatus: textStatus,
+                        error: error
+                    }
+                });
+            } else {
+                self.change_add_on_failed(true);
+                $modal.modal('hide');
+            }
         });
     };
 
-    /** Disable add on **/
+    /** Disable add on */
     self.disableAddon = function() {
-        self.is_processing(true);
+        self.is_waiting(true);
         var data = {
             'enabled': self.addon_enabled()
         };
@@ -95,7 +116,7 @@ function ViewModel(url) {
             self.skipped_projects(skipped_projects);
             $modal.modal('hide');
         }).fail(function (xhr, textStatus, error) {
-            self.is_processing(false);
+            self.is_waiting(false);
             self.changeMessage(_('Cannot disable DataSteward add-on'), 'text-danger');
             Raven.captureMessage(_('Cannot disable DataSteward add-on'), {
                 extra: {
@@ -123,6 +144,7 @@ function ViewModel(url) {
 
     // Update observables with data from the server
     self.fetch = function() {
+        self.is_waiting(true);
         $.ajax({
             url: url,
             type: 'GET',
@@ -130,7 +152,7 @@ function ViewModel(url) {
         }).done(function (response) {
             var enabled = response.enabled;
             self.addon_enabled(enabled);
-            self.loaded(true);
+            self.is_waiting(false);
         }).fail(function (xhr, textStatus, error) {
             self.changeMessage(_('Cannot get DataSteward add-on settings'), 'text-danger');
             Raven.captureMessage(_('Cannot get DataSteward add-on settings'), {
@@ -143,10 +165,12 @@ function ViewModel(url) {
         });
     };
 
-    self.toggleCheckbox = function() {
+    /** Open confirm modal */
+    self.openModal = function() {
         $modal.modal('show');
     };
 
+    /** Create CSV data and save it to client */
     self.clickCSV = function () {
         var skipped_projects = self.skipped_projects();
         if (!skipped_projects) {
@@ -161,36 +185,41 @@ function ViewModel(url) {
         exportToCsv('skipped_projects.csv', rows);
     }
 
-    function exportToCsv(filename, rows) {
-        var processRow = function (row) {
-            var finalVal = '';
-            for (var j = 0; j < row.length; j++) {
-                var innerValue = row[j] === null ? '' : row[j].toString();
-                if (row[j] instanceof Date) {
-                    innerValue = row[j].toLocaleString();
-                };
-                var result = innerValue.replace(/"/g, '""');
-                if (result.search(/("|,|\n)/g) >= 0)
-                    result = '"' + result + '"';
-                if (j > 0)
-                    finalVal += ',';
-                finalVal += result;
-            }
-            return finalVal + '\n';
-        };
+    /** Convert data array to CSV line string */
+    var processRow = function (row) {
+        var finalVal = '';
+        for (var j = 0; j < row.length; j++) {
+            var innerValue = row[j] === null ? '' : row[j].toString();
+            if (row[j] instanceof Date) {
+                // If item is a Date, its locale string
+                innerValue = row[j].toLocaleString();
+            };
+            var result = innerValue.replace(/"/g, '""');
+            if (result.search(/("|,|\n)/g) >= 0)
+                // If string has doublequote, comma or line break characters then wrap it in doublequotes
+                result = '"' + result + '"';
+            if (j > 0)
+                finalVal += ',';
+            finalVal += result;
+        }
+        return finalVal + '\n';
+    };
 
+    /** Export data to CSV file */
+    var exportToCsv = function(filename, rows) {
         var csvFile = '';
         for (var i = 0; i < rows.length; i++) {
             csvFile += processRow(rows[i]);
         }
 
         var blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
-        if (navigator.msSaveBlob) { // IE 10+
+        if (navigator.msSaveBlob) {
+            // For IE 10+
             navigator.msSaveBlob(blob, filename);
         } else {
+            // For modern browsers
             var link = document.createElement("a");
-            if (link.download !== undefined) { // feature detection
-                // Browsers that support HTML5 download attribute
+            if (link.download !== undefined) {
                 var url = URL.createObjectURL(blob);
                 link.setAttribute("href", url);
                 link.setAttribute("download", filename);
@@ -198,6 +227,8 @@ function ViewModel(url) {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+
+                // Release csv URL object
                 URL.revokeObjectURL(url);
             }
         }
@@ -216,5 +247,5 @@ function DataStewardUserConfig(selector, url) {
 
 module.exports = {
     DataStewardViewModel: ViewModel,
-    DataStewardUserConfig: DataStewardUserConfig    // for backwards-compat
+    DataStewardUserConfig: DataStewardUserConfig
 };
