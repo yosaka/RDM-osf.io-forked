@@ -193,7 +193,7 @@ function ViewModel(url) {
             if (row[j] instanceof Date) {
                 // If item is a Date, its locale string
                 innerValue = row[j].toLocaleString();
-            };
+            }
             var result = innerValue.replace(/"/g, '""');
             if (result.search(/("|,|\n)/g) >= 0)
                 // If string has doublequote, comma or line break characters then wrap it in doublequotes
@@ -208,9 +208,9 @@ function ViewModel(url) {
     /** Export data to CSV file */
     var exportToCsv = function(filename, rows) {
         var csvFile = '';
-        for (var i = 0; i < rows.length; i++) {
-            csvFile += processRow(rows[i]);
-        }
+        rows.forEach(function(row) {
+            csvFile += processRow(row)
+        });
 
         var blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
         if (navigator.msSaveBlob) {
@@ -220,8 +220,8 @@ function ViewModel(url) {
             // For modern browsers
             var link = document.createElement("a");
             if (link.download !== undefined) {
-                var url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
+                var download_url = URL.createObjectURL(blob);
+                link.setAttribute("href", download_url);
                 link.setAttribute("download", filename);
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
@@ -229,7 +229,7 @@ function ViewModel(url) {
                 document.body.removeChild(link);
 
                 // Release csv URL object
-                URL.revokeObjectURL(url);
+                URL.revokeObjectURL(download_url);
             }
         }
     }

@@ -1,4 +1,3 @@
-## -*- coding: utf-8 -*-
 <div id="datastewardResultModal" class="modal fade">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
