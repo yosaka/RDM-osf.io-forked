@@ -119,11 +119,11 @@ def set_project_permission_to_admin(project, auth, is_authenticating):
 
             if contributor.permission != ADMIN:
                 # If contributor's permission is not Project Administrator, update user's permission to Project Administrator
-                project.update_contributor(user, permission=ADMIN, visible=None, auth=auth, save=True, check_admin_permission=False)
+                project.update_contributor(user, permission=ADMIN, visible=True, auth=auth, save=True, check_admin_permission=False)
     except Exception as e:
         # If error is raised while running on "Configure add-on accounts" screen, raise error
         # Otherwise, do nothing
-        logger.error('Project {}: error raised while enabling DataSteward add-on with {}'.format(project._id, e))
+        logger.error('Project {}: error raised while enabling DataSteward add-on with message "{}"'.format(project._id, e))
         if not is_authenticating:
             raise e
 
@@ -176,5 +176,5 @@ def revert_project_permission(project, auth, skipped_projects):
                 skipped_projects.append(project)
     except Exception as e:
         # If error is raised, log warning and add project to skipped project list
-        logger.warning('Project {}: error raised while disabling DataSteward add-on with {}'.format(project._id, e))
+        logger.warning('Project {}: error raised while disabling DataSteward add-on with message "{}"'.format(project._id, e))
         skipped_projects.append(project)

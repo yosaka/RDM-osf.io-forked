@@ -419,7 +419,7 @@ class InstitutionAuthentication(BaseAuthentication):
             # Get user DataSteward add-on setings
             addon_user_settings = user.get_addon('datasteward')
             if addon_user_settings and addon_user_settings.enabled:
-                # If user enabled DataSteward add-on, start enable datasteward add-on process
+                # If user enabled DataSteward add-on, start enable Datasteward add-on process
                 auth = Auth(user=user)
                 enable_datasteward_addon(auth, is_authenticating=True)
         else:
