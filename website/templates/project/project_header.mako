@@ -70,7 +70,7 @@
                                     % if addons['metadata']['icon'] and addons['metadata']['has_page_icon']:
                                         <img src="${addons['metadata']['icon']}" class="addon-logo"/>
                                     % endif
-                                    ${_("Package")}
+                                    ${_("Export")}
                                 </a>
                             </li>
                         % endif

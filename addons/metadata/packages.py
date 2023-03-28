@@ -303,7 +303,8 @@ def _create_project_entities(crate, entity_id, node, extra_props=None):
         ContextEntity(crate, f'{entity_id}.jpcoar', properties=custom_props)
     ]
 
-def _fill_license_params(license_text, params):
+def _fill_license_params(license_text, node_license):
+    params = node_license.to_json()
     for k, v in params.items():
         pk = _snake_to_camel(k)
         if isinstance(v, list):
@@ -703,14 +704,19 @@ def import_project(self, url, user_id, node_id):
 
 def get_task_result(auth, task_id):
     result = celery_app.AsyncResult(task_id)
-    if result.info is not None and auth.user._id != result.info['user']:
-        raise HTTPError(http_status.HTTP_403_FORBIDDEN)
+    error = None
     info = {}
-    info.update(result.info)
-    if 'node' in result.info:
-        node = AbstractNode.load(result.info['node'])
-        info['node_url'] = node.web_url_for('view_project')
+    if result.failed():
+        error = str(result.info)
+    elif result.info is not None and auth.user._id != result.info['user']:
+        raise HTTPError(http_status.HTTP_403_FORBIDDEN)
+    else:
+        info.update(result.info)
+        if 'node' in result.info:
+            node = AbstractNode.load(result.info['node'])
+            info['node_url'] = node.web_url_for('view_project')
     return {
         'state': result.state,
         'info': info,
+        'error': error,
     }
