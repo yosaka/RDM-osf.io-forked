@@ -942,14 +942,12 @@ class TestOSFUser:
         mock_idp_attr.side_effect = AttributeError('exception')
         assert_equal(user_auth.is_full_account_required_info, True)
 
-    def test_is_data_steward_is_true(self):
+    def test_is_data_steward_true(self):
         user = UserFactory(is_data_steward=True)
-        user.save()
         assert user.is_data_steward is True
 
-    def test_is_data_steward_is_default_false(self):
+    def test_is_data_steward_default_value_false(self):
         user = UserFactory()
-        user.save()
         assert user.is_data_steward is False
 
 

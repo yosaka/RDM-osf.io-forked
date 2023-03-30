@@ -524,7 +524,7 @@ class TestInstitutionAuth:
         assert user
         assert user.jobs[0]['department'] == organizationnameunit
 
-    def test_authenticate_datasteward_on(self, app, institution, url_auth_institution):
+    def test_authenticate_turn_datasteward_on(self, app, institution, url_auth_institution):
         username = 'user_datasteward@osf.edu'
         entitlement = 'GakuNinRDMDataSteward'
         res = app.post(
@@ -536,7 +536,7 @@ class TestInstitutionAuth:
         assert user
         assert user.is_data_steward is True
 
-    def test_authenticate_datasteward_off(self, app, institution, url_auth_institution):
+    def test_authenticate_turn_datasteward_off(self, app, institution, url_auth_institution):
         username = 'user_datasteward@osf.edu'
         entitlement = ''
         res = app.post(
