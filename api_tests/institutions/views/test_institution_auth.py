@@ -565,4 +565,4 @@ class TestInstitutionAuth:
         assert not mock_signals.signals_sent()
 
         user.reload()
-        assert user.is_data_steward == True
+        assert user.is_data_steward is True
