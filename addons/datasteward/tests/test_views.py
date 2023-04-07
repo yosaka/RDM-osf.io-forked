@@ -35,17 +35,27 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
             self.settings.save()
             self.new_user.save()
 
-    def test_enable_datasteward_addon_enabled_is_False(self):
+    def test_datasteward_user_config_get_forbidden(self):
         url = api_url_for('datasteward_user_config_get')
         self.new_user.is_data_steward = False
         self.new_user.save()
 
-        res = self.app.get(url, auth=self.new_user.auth, expect_errors=True, status=http_status.HTTP_403_FORBIDDEN)
+        res = self.app.get(url, auth=self.new_user.auth, expect_errors=True)
 
         assert_equal(res.status_code, http_status.HTTP_403_FORBIDDEN)
+        assert_equal(res.json, {})
+
+    def test_datasteward_user_config_get_false_by_addon_settings_not_found(self):
+        url = api_url_for('datasteward_user_config_get')
+        self.new_user.is_data_steward = True
+        self.new_user.save()
+
+        res = self.app.get(url, auth=self.new_user.auth)
+
+        assert_equal(res.status_code, http_status.HTTP_200_OK)
         assert_false(res.json.get('enabled'))
 
-    def test_enable_datasteward_addon_enabled_is_True(self):
+    def test_datasteward_user_config_get_true(self):
         url = api_url_for('datasteward_user_config_get')
         self.setUp_addon()
 
@@ -56,28 +66,28 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     def test_datasteward_user_config_post_bad_request(self):
         url = api_url_for('datasteward_user_config_post')
-        res = self.app.post_json(url, {}, auth=self.new_user.auth, status=http_status.HTTP_400_BAD_REQUEST)
+        res = self.app.post_json(url, {}, auth=self.new_user.auth, expect_errors=True)
         assert_equal(res.status_code, http_status.HTTP_400_BAD_REQUEST)
 
-    def test_datasteward_user_config_post_403_FORBIDDEN(self):
+    def test_datasteward_user_config_post_forbidden(self):
         url = api_url_for('datasteward_user_config_post')
         self.new_user.is_data_steward = False
         self.new_user.save()
 
-        res = self.app.post_json(url, {'enabled': True}, auth=self.new_user.auth, status=http_status.HTTP_403_FORBIDDEN)
+        res = self.app.post_json(url, {'enabled': True}, auth=self.new_user.auth, expect_errors=True)
         assert_equal(res.status_code, http_status.HTTP_403_FORBIDDEN)
 
     @mock.patch('addons.datasteward.views.disable_datasteward_addon')
-    def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_None(self, mock_disable_addon):
+    def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_none(self, mock_disable_addon):
         self.setUp_addon()
         url = api_url_for('datasteward_user_config_post')
         mock_disable_addon.return_value = None
 
-        res = self.app.post_json(url, {'enabled': False}, auth=self.new_user.auth, status=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
+        res = self.app.post_json(url, {'enabled': False}, auth=self.new_user.auth, expect_errors=True)
         assert_equal(res.status_code, http_status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @mock.patch('addons.datasteward.views.disable_datasteward_addon')
-    def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_not_None(self, mock_disable_addon):
+    def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_not_none(self, mock_disable_addon):
         self.setUp_addon()
         url = api_url_for('datasteward_user_config_post')
         project = ProjectFactory.build()
@@ -106,13 +116,12 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
         res = self.app.post_json(url, {'enabled': True}, auth=self.new_user.auth)
         assert_equal(res.status_code, http_status.HTTP_200_OK)
 
-    def test_enable_datasteward_addon_affiliated_institutions_all_is_empty(self):
+    def test_enable_datasteward_addon_no_affiliated_institutions(self):
         result = enable_datasteward_addon(self.auth)
 
         assert_false(result)
 
-    @mock.patch('addons.datasteward.views.set_project_permission_to_admin')
-    def test_enable_datasteward_addon_affiliated_institutions(self, mock_set_permission):
+    def test_enable_datasteward_addon_success(self):
         institution = InstitutionFactory()
 
         node = ProjectFactory(creator=self.new_user, type=OSF_NODE, is_deleted=False)
@@ -134,12 +143,10 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
     def test_set_project_permission_to_admin_raise_exception(self):
         mock_project = mock.Mock()
         mock_project.is_contributor.side_effect = Exception('mock test error')
-        try:
+        with pytest.raises(Exception):
             set_project_permission_to_admin(mock_project, self.auth, False)
-        except Exception:
-            assert True
 
-    def test_set_project_permission_to_admin_add_contributor(self):
+    def test_set_project_permission_to_admin_add_new_contributor(self):
         user = AuthUserFactory(username='new_admin@osf.com', fullname='new_admin')
         set_project_permission_to_admin(self.project, Auth(user), False)
 
@@ -161,13 +168,12 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
         contributor = self.project.contributor_class.objects.get(user=group_mem, node=self.project)
         assert_equal(permissions.ADMIN, contributor.permission)
 
-    def testdisable_datasteward_addon_affiliated_institutions_all_is_empty(self):
+    def test_disable_datasteward_addon_affiliated_institutions_is_empty(self):
         result = disable_datasteward_addon(self.auth)
 
         assert_false(result)
 
-    @mock.patch('addons.datasteward.views.revert_project_permission')
-    def test_disable_datasteward_addon_affiliated_institutions(self, mock_set_permission):
+    def test_disable_datasteward_addon_affiliated_institutions(self):
         institution = InstitutionFactory()
 
         node = ProjectFactory(creator=self.new_user, type=OSF_NODE, is_deleted=False)
