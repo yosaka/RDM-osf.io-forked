@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('osf', '0225_osfuser_is_data_steward'),
+        ('osf', '0226_osfuser_is_data_steward'),
     ]
 
     operations = [
