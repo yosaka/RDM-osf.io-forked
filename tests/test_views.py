@@ -6185,5 +6185,6 @@ class TestUserAddon(OsfTestCase):
         res = self.app.get(url, auth=(self.user.auth))
         assert_equal(res.status_code, http_status.HTTP_200_OK)
 
+
 if __name__ == '__main__':
     unittest.main()

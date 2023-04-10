@@ -249,6 +249,12 @@ class NodeFactory(BaseNodeFactory):
     category = 'hypothesis'
     parent = factory.SubFactory(ProjectFactory)
 
+class ContributorFactory(DjangoModelFactory):
+    user = factory.SubFactory(AuthUserFactory)
+    node = factory.SubFactory(ProjectFactory)
+
+    class Meta:
+        model = models.Contributor
 
 class InstitutionFactory(DjangoModelFactory):
     name = factory.Faker('company')

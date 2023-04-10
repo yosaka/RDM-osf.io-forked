@@ -1,9 +1,10 @@
-from rest_framework import status as http_status
-from nose.tools import (assert_equal, assert_equals,
-    assert_true, assert_in, assert_false)
 import mock
 import pytest
 import unittest
+
+from rest_framework import status as http_status
+from nose.tools import (assert_equal, assert_true, assert_false)
+
 from addons.datasteward.tests.utils import DataStewardAddonTestCase
 from addons.datasteward.views import disable_datasteward_addon, enable_datasteward_addon, revert_project_permission, set_project_permission_to_admin
 from framework.auth.core import Auth
@@ -25,7 +26,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
         self.project.save()
         self.auth = Auth(self.new_user)
 
-    def setUp_addon(self):
+    def set_datasteward_addon(self):
         self.new_user.is_data_steward = True
         self.new_user.save()
 
@@ -57,7 +58,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     def test_datasteward_user_config_get_true(self):
         url = api_url_for('datasteward_user_config_get')
-        self.setUp_addon()
+        self.set_datasteward_addon()
 
         res = self.app.get(url, auth=self.new_user.auth)
 
@@ -79,7 +80,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     @mock.patch('addons.datasteward.views.disable_datasteward_addon')
     def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_none(self, mock_disable_addon):
-        self.setUp_addon()
+        self.set_datasteward_addon()
         url = api_url_for('datasteward_user_config_post')
         mock_disable_addon.return_value = None
 
@@ -88,7 +89,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     @mock.patch('addons.datasteward.views.disable_datasteward_addon')
     def test_datasteward_user_config_post_enabled_is_false_and_skipped_projects_is_not_none(self, mock_disable_addon):
-        self.setUp_addon()
+        self.set_datasteward_addon()
         url = api_url_for('datasteward_user_config_post')
         project = ProjectFactory.build()
         mock_disable_addon.return_value = [project]
@@ -100,7 +101,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     @mock.patch('addons.datasteward.views.enable_datasteward_addon')
     def test_datasteward_user_config_post_enabled_is_true_and_enable_addon_result_is_false(self, mock_enable_addon):
-        self.setUp_addon()
+        self.set_datasteward_addon()
         url = api_url_for('datasteward_user_config_post')
         mock_enable_addon.return_value = False
 
@@ -109,7 +110,7 @@ class TestDataStewardViews(DataStewardAddonTestCase, OsfTestCase, unittest.TestC
 
     @mock.patch('addons.datasteward.views.enable_datasteward_addon')
     def test_datasteward_user_config_post_enabled_is_true_and_enable_addon_result_is_true(self, mock_enable_addon):
-        self.setUp_addon()
+        self.set_datasteward_addon()
         url = api_url_for('datasteward_user_config_post')
         mock_enable_addon.return_value = True
 
