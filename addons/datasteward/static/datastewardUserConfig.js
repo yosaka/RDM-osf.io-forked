@@ -177,10 +177,12 @@ function ViewModel(url) {
             return;
         }
 
-        var rows = skipped_projects.map(project => [
-            project['guid'],
-            project['name']
-        ]);
+        var rows = skipped_projects.map(function(project) {
+            return [
+                project['guid'],
+                project['name']
+            ]
+        });
 
         exportToCsv('skipped_projects.csv', rows);
     }
