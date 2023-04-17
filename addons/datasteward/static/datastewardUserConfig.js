@@ -181,7 +181,7 @@ function ViewModel(url) {
             return [
                 project['guid'],
                 project['name']
-            ]
+            ];
         });
 
         exportToCsv('skipped_projects.csv', rows);

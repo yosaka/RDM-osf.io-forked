@@ -102,7 +102,7 @@ def set_project_permission_to_admin(project, auth, is_authenticating):
     try:
         if not project.is_contributor(user):
             # If user is not project's contributor, add user to contributor list
-            add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=auth, log=True, save=True)
+            add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=auth, log=True, save=True, skip_send_email=True)
             if add_result:
                 contributor = project.contributor_class.objects.get(user=user, node=project)
                 contributor.is_data_steward = True
@@ -137,11 +137,12 @@ def disable_datasteward_addon(auth, **kwargs):
 
     # Start disabling DataSteward add-on process
     skipped_projects = []
-    for institution in affiliated_institutions:
-        # Get projects from institution
-        projects = institution.nodes.filter(type=OSF_NODE, is_deleted=False)
-        for project in projects:
-            revert_project_permission(project=project, auth=auth, skipped_projects=skipped_projects)
+    with transaction.atomic():
+        for institution in affiliated_institutions:
+            # Get projects from institution
+            projects = institution.nodes.filter(type=OSF_NODE, is_deleted=False)
+            for project in projects:
+                revert_project_permission(project=project, auth=auth, skipped_projects=skipped_projects)
     return skipped_projects
 
 
