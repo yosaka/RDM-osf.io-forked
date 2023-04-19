@@ -9,6 +9,7 @@ from django.db import transaction
 from osf.utils.permissions import ADMIN
 
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -88,21 +89,27 @@ def enable_datasteward_addon(auth, is_authenticating=False, **kwargs):
 
     # Start enabling DataSteward add-on process
     with transaction.atomic():
+        loop = asyncio.new_event_loop()
+        coroutines = []
         for institution in affiliated_institutions:
             # Get projects from institution
             projects = institution.nodes.filter(type=OSF_NODE, is_deleted=False)
             for project in projects:
-                set_project_permission_to_admin(project=project, auth=auth, is_authenticating=is_authenticating)
+                coroutines.append(loop.create_task(set_project_permission_to_admin(project=project, auth=auth, is_authenticating=is_authenticating)))
+
+        loop.run_until_complete(asyncio.wait(coroutines))
+        loop.close()
+
     return True
 
 
-def set_project_permission_to_admin(project, auth, is_authenticating):
+async def set_project_permission_to_admin(project, auth, is_authenticating):
     """Force add or set project permission to administrator"""
     user = auth.user
     try:
         if not project.is_contributor(user):
             # If user is not project's contributor, add user to contributor list
-            add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=auth, log=True, save=True, skip_send_email=True)
+            add_result = project.add_contributor(user, permissions=ADMIN, visible=True, send_email=None, auth=auth, log=True, save=False, skip_send_email=True)
             if add_result:
                 contributor = project.contributor_class.objects.get(user=user, node=project)
                 contributor.is_data_steward = True
@@ -119,7 +126,7 @@ def set_project_permission_to_admin(project, auth, is_authenticating):
 
             if contributor.permission != ADMIN:
                 # If contributor's permission is not Project Administrator, update user's permission to Project Administrator
-                project.update_contributor(user, permission=ADMIN, visible=True, auth=auth, save=True, check_admin_permission=False)
+                project.update_contributor(user, permission=ADMIN, visible=True, auth=auth, save=False, check_admin_permission=False)
     except Exception as e:
         # If error is raised while running on "Configure add-on accounts" screen, raise error
         # Otherwise, do nothing
@@ -138,15 +145,21 @@ def disable_datasteward_addon(auth, **kwargs):
     # Start disabling DataSteward add-on process
     skipped_projects = []
     with transaction.atomic():
+        loop = asyncio.new_event_loop()
+        coroutines = []
         for institution in affiliated_institutions:
             # Get projects from institution
             projects = institution.nodes.filter(type=OSF_NODE, is_deleted=False)
             for project in projects:
-                revert_project_permission(project=project, auth=auth, skipped_projects=skipped_projects)
+                coroutines.append(loop.create_task(revert_project_permission(project=project, auth=auth, skipped_projects=skipped_projects)))
+
+        loop.run_until_complete(asyncio.wait(coroutines))
+        loop.close()
+
     return skipped_projects
 
 
-def revert_project_permission(project, auth, skipped_projects):
+async def revert_project_permission(project, auth, skipped_projects):
     """Force restore old project permission or remove from project"""
     user = auth.user
     try:
@@ -164,7 +177,7 @@ def revert_project_permission(project, auth, skipped_projects):
         if contributor.data_steward_old_permission is not None:
             # If user had contributor's old permission before enabling add-on in project, restore that permission
             project.update_contributor(user, permission=contributor.data_steward_old_permission, visible=None,
-                                       auth=auth, save=True, check_admin_permission=False)
+                                       auth=auth, save=False, check_admin_permission=False)
             contributor.is_data_steward = False
             contributor.data_steward_old_permission = None
             contributor.save()
