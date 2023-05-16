@@ -10,7 +10,8 @@ from osf.utils.permissions import READ
 from osf.utils import workflows
 from api.waffle.utils import storage_i18n_flag_active
 from website.util import quota
-
+# @R2022-48
+import re
 
 def get_profile_image_url(user, size=settings.PROFILE_IMAGE_MEDIUM):
     return profile_image_url(settings.PROFILE_IMAGE_PROVIDER,
@@ -31,6 +32,19 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         user = contrib.user
     fullname = user.display_full_name(node=node)
     idp_attrs = user.get_idp_attr()
+    # @R2022-48
+    if not user.aal:
+        _aal = "NULL"
+    elif re.search('AAL2', user.aal):
+        _aal = "AAL2"
+    else:
+        _aal = "AAL1"
+    if not user.ial:
+        _ial = "NULL"
+    elif re.search('IAL2', user.ial):
+        _ial = "IAL2"
+    else:
+        _ial = "IAL1"
     ret = {
         'id': str(user._id),
         'primary_key': user.id,
