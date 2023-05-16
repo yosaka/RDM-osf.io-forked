@@ -54,6 +54,10 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         'shortname': fullname if len(fullname) < 50 else fullname[:23] + '...' + fullname[-23:],
         'profile_image_url': user.profile_image_url(size=settings.PROFILE_IMAGE_MEDIUM),
         'active': user.is_active,
+        'ial': user.ial,# @R2022-48
+        'aal': user.aal,# @R2022-48
+        '_ial': _ial,# @R2022-48
+        '_aal': _aal,# @R2022-48
         'have_email': user.have_email,
         'idp_email': idp_attrs.get('email'),
     }
