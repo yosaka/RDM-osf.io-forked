@@ -176,8 +176,14 @@ class InstitutionAuthentication(BaseAuthentication):
             if loa.aal == 2:
                 if not re.search('AAL2', aal):
                     loa_flag = False
+            elif loa.aal == 1:
+                if not re.search('AAL1', aal):
+                    loa_flag = False
             if loa.ial == 2:
                 if not re.search('IAL2', ial):
+                    loa_flag = False
+            elif loa.ial == 1:
+                if not re.search('IAL1', ial):
                     loa_flag = False
         if not loa_flag:
             message = 'Institution login failed: Does not meet the required AAL and IAL.'
