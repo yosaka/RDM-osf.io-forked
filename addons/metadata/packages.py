@@ -552,7 +552,7 @@ def _build_ro_crate(node, wb, config):
         crate.add(*comments)
     return crate, files
 
-def _to_metadata_value(value):
+def to_metadata_value(value):
     return {
         'extra': [],
         'comments': [],
@@ -623,11 +623,11 @@ def export_project(self, user_id, node_id, config):
                     'active': True,
                     'schema': schema_id,
                     'data': {
-                        'grdm-file:pubdate': _to_metadata_value(datetime.now().date().isoformat()),
-                        'grdm-file:Title.ja': _to_metadata_value(node.title),
-                        'grdm-file:Description.subitem_description_type.ja': _to_metadata_value('Other'),
-                        'grdm-file:Description.subitem_description.ja': _to_metadata_value(node.description),
-                        'grdm-file:resourcetype': _to_metadata_value('dataset'),
+                        'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
+                        'grdm-file:Title.ja': to_metadata_value(node.title),
+                        'grdm-file:Description.subitem_description_type.ja': to_metadata_value('Other'),
+                        'grdm-file:Description.subitem_description.ja': to_metadata_value(node.description),
+                        'grdm-file:resourcetype': to_metadata_value('dataset'),
                     },
                 }
             ],

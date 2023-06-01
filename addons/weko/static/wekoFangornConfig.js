@@ -44,11 +44,11 @@ var _wekoItemButtons = {
             } else if ((item.data.extra || {}).weko === 'draft') {
                 buttons.push(m.component(Fangorn.Components.button, {
                     onclick: function (event) {
-                        _publish(tb, item);
+                        _deposit(tb, item);
                     },
                     icon: 'fa fa-upload',
                     className: 'text-primary weko-button-publish'
-                }, _('Publish')));
+                }, _('Deposit')));
                 buttons.push(m.component(Fangorn.Components.defaultItemButtons, {
                     treebeard : tb, mode : mode, item : item
                 }));
@@ -171,7 +171,7 @@ function _showError(tb, message) {
     tb.modal.update(modalContent, modalActions, m('h3.break-word.modal-title', 'Error'));
 }
 
-function _publish(tb, contextItem) {
+function _deposit(tb, contextItem) {
     console.log(logPrefix, 'publish', contextItem);
     const extra = contextItem.data.extra;
     var url = contextVars.node.urls.api;
@@ -192,7 +192,7 @@ function _publish(tb, contextItem) {
       _cancelPublishing(tb, contextItem);
       const message = _('Error occurred: ') + error;
       _showError(tb, message);
-      Raven.captureMessage('Error while publishing file', {
+      Raven.captureMessage('Error while depositing file', {
         extra: {
             url: url,
             status: status,
@@ -266,15 +266,95 @@ function _cancelPublishing(tb, item) {
     tb.redraw();
 }
 
+function _generateDraftMetadata(tb, contextItem, callback) {
+    const extra = contextItem.data.extra;
+    var url = contextVars.node.urls.api;
+    if (!url.match(/.*\/$/)) {
+        url += '/';
+    }
+    url += 'weko/index/' + extra.index
+        + '/files/' + contextItem.data.nodeId + '/' + contextItem.data.provider
+        + contextItem.data.materialized;
+    return $osf.postJSON(url, {
+    }).done(function (data) {
+        if (!callback) {
+            return;
+        }
+        callback();
+    }).fail(function(xhr, status, error) {
+        Raven.captureMessage('Error while depositing file', {
+            extra: {
+                url: url,
+                status: status,
+                error: error
+            }
+        });
+        if (!callback) {
+            return;
+        }
+        callback(error);
+    });
+
+}
+
+function _showConfirmDeposit(tb, contextItem, callback) {
+    var modalContent = [
+            m('p.m-md', _('Do you want to deposit the file to WEKO?'))
+        ];
+    var modalActions = [
+            m('button.btn.btn-default', {
+                    'onclick': function () {
+                        tb.modal.dismiss();
+                        if (!callback) {
+                            return;
+                        }
+                        callback(false);
+                    }
+                }, 'Cancel'),
+            m('button.btn.btn-primary', {
+                    'onclick': function () {
+                        tb.modal.dismiss();
+                        if (!callback) {
+                            return;
+                        }
+                        callback(true);
+                    }
+                }, 'OK')
+        ];
+    tb.modal.update(modalContent, modalActions, m('h3.break-word.modal-title', 'Deposit'));
+}
+
 function _uploadSuccess(file, item, response) {
     var tb = this;
-    console.log('Uploaded', item, response);
-    if(response.data.attributes.extra.archivable) {
-        console.log('Publishing...', response);
-        _publish(tb, item);
-    }else{
-        tb.updateFolder(null, _findItem(tb.treeData, item.parentID));
-    }
+    console.log(logPrefix, 'Uploaded', item, response);
+    const parentItem = _findItem(tb.treeData, item.parentID);
+    const nodeAttrs = Object.fromEntries(Object.entries(parentItem.data).filter(function(kv) {
+        return kv[0].match(/^node.+$/);
+    }));
+    const uploadedItem = {
+        data: Object.assign({}, nodeAttrs, item.data, (response.data || {}).attributes || {}),
+    };
+    _generateDraftMetadata(tb, uploadedItem, function(error) {
+        if (error) {
+            const message = _('Error occurred: ') + error;
+            _showError(tb, message);
+            return;
+        }
+        console.log(logPrefix, 'Metadata updated', uploadedItem, parentItem);
+        contextVars.metadata.loadMetadata(
+            parentItem.data.nodeId,
+            parentItem.data.nodeApiUrl,
+            function() {
+                _showConfirmDeposit(tb, uploadedItem, function(deposit) {
+                    if (!deposit) {
+                        tb.updateFolder(null, parentItem);
+                        return;
+                    }
+                    _deposit(tb, uploadedItem);
+                });
+            },
+        );
+    });
     return {};
 }
 

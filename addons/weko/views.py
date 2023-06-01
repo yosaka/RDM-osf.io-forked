@@ -1,9 +1,11 @@
 """Views for the node settings page."""
 # -*- coding: utf-8 -*-
 from rest_framework import status as http_status
+from datetime import datetime
 import os
 import logging
 import io
+import json
 import shutil
 import tempfile
 from zipfile import ZipFile
@@ -37,11 +39,31 @@ from website.oauth.signals import oauth_complete
 from admin.rdm_addons.decorators import must_be_rdm_addons_allowed
 from admin.rdm_addons.utils import get_rdm_addon_option
 from addons.metadata import SHORT_NAME as METADATA_SHORT_NAME
+from addons.metadata.packages import to_metadata_value
 from website.util import waterbutler
 
 
 logger = logging.getLogger('addons.weko.views')
 
+
+def _metadata_entry_is_empty(entry):
+    if 'value' not in entry:
+        return True
+    value = entry['value']
+    return value == ''
+
+def _to_creators_json(users):
+    return json.dumps([
+        _to_user_json(user)
+        for user in users
+    ])
+
+def _to_user_json(user):
+    return {
+        'number': user.erad,
+        'name_ja': ''.join([user.family_name_ja, user.middle_names_ja, user.given_name_ja]),
+        'name_en': ' '.join([user.given_name, user.middle_names, user.family_name]),
+    }
 
 def _get_repository_options(user_settings):
     repos = list(weko_settings.REPOSITORY_IDS)
@@ -211,6 +233,58 @@ def weko_get_file_metadata(auth, **kwargs):
     node = kwargs['node'] or kwargs['project']
     addon = node.get_addon(SHORT_NAME)
     return _response_files_metadata(addon, [])
+
+@must_be_logged_in
+@must_have_permission('write')
+@must_have_addon(SHORT_NAME, 'node')
+@must_have_addon(METADATA_SHORT_NAME, 'node')
+def weko_generate_draft_metadata(auth, did=None, index_id=None, mnode=None, filepath=None, **kwargs):
+    node = kwargs['node'] or kwargs['project']
+    mnode_obj = _get_file_metadata_node(node, mnode)
+    metadata_addon = mnode_obj.get_addon(METADATA_SHORT_NAME)
+    file_metadata = metadata_addon.get_file_metadata_for_path(filepath)
+    _, filename = os.path.split(filepath)
+    schema_id = RegistrationSchema.objects.get(name=weko_settings.REGISTRATION_SCHEMA_NAME)._id
+    default_data = {
+        'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
+        'grdm-file:Title.ja': to_metadata_value(f'{filename} - {node.title}'),
+        'grdm-file:Creator': to_metadata_value(_to_creators_json([auth.user])),
+        'grdm-file:resourcetype': to_metadata_value('dataset'),
+    }
+    if file_metadata is None:
+        file_metadata = {
+            'path': filepath,
+            'folder': False,
+            'hash': '',
+            'items': [
+                {
+                    'active': True,
+                    'schema': schema_id,
+                    'data': default_data,
+                },
+            ],
+        }
+    else:
+        if 'items' not in file_metadata:
+            file_metadata['items'] = []
+        items = [i for i in file_metadata['items'] if i.get('schema', None) == schema_id]
+        if len(items) == 0:
+            file_metadata['items'].append({
+                'active': True,
+                'schema': schema_id,
+                'data': default_data,
+            })
+        else:
+            item = items[0]
+            if 'data' not in item:
+                item['data'] = {}
+            for k, v in default_data.items():
+                if k in item['data'] and not _metadata_entry_is_empty(item['data'][k]):
+                    continue
+                item['data'][k] = v
+    metadata_addon.set_file_metadata(filepath, file_metadata)
+    logger.info(f'Draft metadata {filepath}, {file_metadata}')
+    return file_metadata
 
 @must_be_logged_in
 @must_have_permission('write')

@@ -53,9 +53,18 @@ mapping_table = {'pubdate': 'pubdate',
         'type': 'file-creators',
         'key': 'Creator',
         'items': {
-            'nameIdentifiers[0].nameIdentifierScheme': {'type': 'const', 'value': ''},
+            'nameIdentifiers[0].nameIdentifierScheme': {
+                'type': 'jsonproperty-defined',
+                'key': 'Creator',
+                'condition': 'number',
+                'value': 'e-Rad',
+            },
             'nameIdentifiers[0].nameIdentifierURI': {'type': 'const', 'value': ''},
-            'nameIdentifiers[0].nameIdentifier': {'type': 'const', 'value': ''},
+            'nameIdentifiers[0].nameIdentifier': {
+                'type': 'jsonproperty',
+                'key': 'Creator',
+                'value': 'number',
+            },
             'creatorNames[0].creatorName': {'type': 'jsonproperty', 'key': 'Creator', 'value': 'name_ja'},
             'creatorNames[0].creatorNameLang': {'type': 'const', 'value': 'ja'},
             'creatorNames[1].creatorName': {'type': 'jsonproperty', 'key': 'Creator', 'value': 'name_en'},
@@ -249,6 +258,13 @@ def _get_metadata_value(file_metadata_data, item, lang, index):
     if item['type'] == 'jsonproperty':
         logger.debug(f'jsonproperty: {value}')
         return json.loads(value)[index][item['value']]
+    if item['type'] == 'jsonproperty-defined':
+        condkey = item['condition']
+        logger.debug(f'jsonproperty-defined: {condkey} in {value}')
+        cond = json.loads(value)[index][condkey]
+        if not cond:
+            return ''
+        return item['value']
     raise KeyError(item['type'])
 
 
@@ -336,7 +352,7 @@ def to_metadata(schema_id, item):
 def write_csv(f, target_index, download_file_names, schema_id, file_metadata):
     header = ['#ItemType', 'デフォルトアイテムタイプ（フル）(15)', 'https://localhost:8443/items/jsonschema/15']
 
-    columns = [('.publish_status', '.PUBLISH_STATUS', '', 'Required', 'public')]
+    columns = [('.publish_status', '.PUBLISH_STATUS', '', 'Required', 'private')]
     columns.append(('.metadata.path[0]', '.IndexID[0]', '', 'Allow Multiple', target_index.identifier))
     columns.append(('.pos_index[0]', '.POS_INDEX[0]', '', 'Allow Multiple', target_index.title))
     for i, download_file_name in enumerate(download_file_names):

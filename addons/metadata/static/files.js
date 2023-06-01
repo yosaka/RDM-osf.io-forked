@@ -141,6 +141,9 @@ function MetadataButtons() {
     if (self.loadingMetadatas[nodeId]) {
       return;
     }
+    if (!baseUrl) {
+      throw new Error('baseUrl is not defined');
+    }
     self.loadingMetadatas[nodeId] = true;
     const url = baseUrl + 'project';
     console.log(logPrefix, 'loading: ', url);
@@ -2307,6 +2310,15 @@ function MetadataButtons() {
 
 if (contextVars.metadataAddonEnabled) {
   const btn = new MetadataButtons();
+  contextVars.metadata = {
+    loadMetadata: function(nodeId, nodeApiUrl, callback) {
+      var metadataUrl = nodeApiUrl;
+      if (!nodeApiUrl.match(/.+\/$/)) {
+        metadataUrl += '/';
+      }
+      btn.loadMetadata(nodeId, metadataUrl + 'metadata/', callback);
+    },
+  };
   if ($('#fileViewPanelLeft').length > 0) {
     // File View
     btn.initFileView();
