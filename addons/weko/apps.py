@@ -32,11 +32,13 @@ class WEKOAddonAppConfig(BaseAddonAppConfig):
         return weko_root_folder
 
     INDEX_LINKED = 'weko_index_linked'
+    ITEM_DEPOSITED = 'item_deposited'
     NODE_AUTHORIZED = 'weko_node_authorized'
     NODE_DEAUTHORIZED = 'weko_node_deauthorized'
     NODE_DEAUTHORIZED_NO_USER = 'weko_node_deauthorized_no_user'
 
     actions = (INDEX_LINKED,
+        ITEM_DEPOSITED,
         NODE_AUTHORIZED,
         NODE_DEAUTHORIZED,
         NODE_DEAUTHORIZED_NO_USER)

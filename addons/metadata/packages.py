@@ -70,7 +70,9 @@ class WaterButlerClient(object):
         return response.json()
 
     def resolve_file_path(self, dest_path):
-        f = self.get_file(dest_path)
+        f = self._get_file(dest_path)
+        if f is None:
+            raise IOError(f'File not found: {dest_path}')
         logger.debug(f'Resolved: {dest_path} = {f}')
         if 'attributes' not in f:
             return dest_path
@@ -85,13 +87,19 @@ class WaterButlerClient(object):
         waterbutler.create_folder(self.cookie, self.node._id, folder_name, path)
 
     def get_file(self, path):
+        attr = self._get_file(path)
+        if attr is None:
+            return None
+        return WaterButlerObject(attr, self)
+
+    def _get_file(self, path):
         path_segments = path.split('/')
         folder = path_segments[-1] == ''
         if folder:
             path_segments = path_segments[:-1]
         if len(path_segments) == 1:
             return self.get_provider(path_segments[0])
-        parent_file = self.get_file('/'.join(path_segments[:-1]) + '/')
+        parent_file = self._get_file('/'.join(path_segments[:-1]) + '/')
         kind = 'folder' if folder else 'file'
         target_path = '/'.join(path_segments[1:])
         if folder:
@@ -110,10 +118,9 @@ class WaterButlerClient(object):
         return None
 
 class WaterButlerObject(object):
-    def __init__(self, resp, wb, provider):
+    def __init__(self, resp, wb):
         self.raw = resp
         self.wb = wb
-        self.provider = provider
         self._children = {}
 
     def get_files(self, _internal=True):
@@ -127,7 +134,7 @@ class WaterButlerObject(object):
             cookies={website_settings.COOKIE_NAME: self.wb.cookie}
         )
         response.raise_for_status()
-        return [WaterButlerObject(f, self.wb, self.provider) for f in response.json()['data']]
+        return [WaterButlerObject(f, self.wb) for f in response.json()['data']]
 
     def download_to(self, f, _internal=True):
         logger.debug(f'download content: {self.links}')
@@ -143,6 +150,17 @@ class WaterButlerObject(object):
         response.raise_for_status()
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
+
+    def delete(self, _internal=True):
+        url = furl.furl(website_settings.WATERBUTLER_INTERNAL_URL if _internal else website_settings.WATERBUTLER_URL)
+        file_url = furl.furl(self.links['delete'])
+        url.path = str(file_url.path)
+        response = requests.delete(
+            url.url,
+            headers={'content-type': 'application/json'},
+            cookies={website_settings.COOKIE_NAME: self.wb.cookie},
+        )
+        response.raise_for_status()
 
     @property
     def guid(self):
@@ -218,6 +236,291 @@ class GeneratorIOStream(io.RawIOBase):
             pos += len(m)
         return pos
 
+class BaseROCrateFactory(object):
+
+    def __init__(self, node, work_dir):
+        self.node = node
+        self.work_dir = work_dir
+        self.include_users = False
+
+    def _ro_crate_path_list(self):
+        crate = ROCrate()
+        crate.metadata.extra_terms.update({
+            # TBD RO-Crateスキーマ定義
+            '@vocab': 'https://terms.rcos.nii.ac.jp/schema/1.0/',
+            'isReplacedBy': 'http://purl.org/dc/terms/isReplacedBy',
+            'dc': 'http://purl.org/dc/terms/',
+            'datacite': 'https://schema.datacite.org/meta/kernel-4/',
+            'jpcoar': 'https://github.com/JPCOAR/schema/blob/master/1.0/',
+        })
+
+        crate, files = self._build_ro_crate(crate)
+        metadata_file = os.path.join(self.work_dir, 'ro-crate-metadata.json')
+        zip_path = os.path.join(self.work_dir, 'work.zip')
+        crate.write_zip(zip_path)
+        with ZipFile(zip_path, 'r') as zf:
+            with zf.open('ro-crate-metadata.json') as f:
+                metadata = f.read()
+                with open(metadata_file, 'wb') as df:
+                    df.write(metadata)
+        yield {
+            'fs': metadata_file,
+            'n': 'ro-crate-metadata.json',
+        }
+        tmp_path = os.path.join(self.work_dir, 'temp.dat')
+        for path, file, _ in files:
+            logger.info(f'Downloading... {path}')
+            assert path.startswith('./'), path
+            with open(tmp_path, 'wb') as df:
+                file.download_to(df)
+            yield {
+                'fs': tmp_path,
+                'n': path[2:],
+            }
+
+    def _build_ro_crate(self, crate):
+        raise NotImplementedError()
+
+    def download_to(self, zip_path):
+        zfly = zipfly.ZipFly(paths=self._ro_crate_path_list())
+        with open(zip_path, 'wb') as f:
+            shutil.copyfileobj(GeneratorIOStream(zfly.generator()), f)
+
+    def _create_file_entities(self, crate, base_path, wb_file, user_ids):
+        r = []
+        path = os.path.join(base_path, wb_file.name)
+        if wb_file.attributes['kind'] == 'folder':
+            path += '/'
+            wb_files = wb_file.get_files()
+            for child in wb_files:
+                r += self._create_file_entities(crate, path, child, user_ids)
+            crate.add(DataEntity(crate, path, properties={
+                '@type': 'StorageProvider' if wb_file.path == '/' else 'Folder',
+                'name': wb_file.name,
+                'hasPart': [
+                    {'@id': f'{path}{child.name}' if child.attributes['kind'] == 'folder' else f'{path[2:]}{child.name}'}
+                    for child in wb_files
+                ]
+            }))
+        else:
+            web_file = BaseFileNode.objects.filter(
+                _path=wb_file.path,
+                provider=wb_file.provider,
+                target_object_id=self.node.id,
+                deleted=None,
+                target_content_type_id=ContentType.objects.get_for_model(AbstractNode),
+            ).order_by('-id').first()
+
+            comments = []
+            creator = None
+            if web_file is not None:
+                latest = web_file.versions.order_by('-created').first()
+                if latest is not None:
+                    creator = latest.creator
+                if self.include_users and creator._id not in user_ids:
+                    self._create_contributor_entities(crate, creator, user_ids)
+                comments = sum([
+                    self._create_comment_entities(crate, path, c, user_ids)
+                    for c in Comment.objects.filter(root_target=web_file)
+                ], []) if web_file is not None and hasattr(web_file, 'comments') else []
+            r.append((path, wb_file, comments))
+            props = {
+                'name': wb_file.name,
+                'encodingFormat': wb_file.contentType,
+                'contentSize': str(wb_file.size),
+                'dateModified': wb_file.modified_utc,
+                'dateCreated': wb_file.created_utc,
+            }
+            if creator is not None and creator._id in user_ids:
+                props['creator'] = user_ids[creator._id]
+            crate.add_file(path, dest_path=path, properties=props)
+        return r
+
+    def _create_comment_entities(self, crate, parent_id, comment, user_ids):
+        if self.include_users and comment.user._id not in user_ids:
+            self._create_contributor_entities(crate, comment.user, user_ids)
+        comment_id = f'#comment#{comment._id}'
+        r = [ContextEntity(crate, comment_id, properties={
+            '@type': 'Comment',
+            'dateCreated': _to_datetime(comment.created),
+            'dateModified': _to_datetime(comment.modified),
+            'parentItem': {
+                '@id': parent_id,
+            },
+            'text': comment.content,
+            'author': {
+                '@id': user_ids[comment.user._id]
+            } if comment.user._id in user_ids else None
+        })]
+        for reply in Comment.objects.filter(target___id=comment._id):
+            r += self._create_comment_entities(crate, comment_id, reply, user_ids)
+        return r
+
+    def _create_creator_entities(self, crate, user, user_ids):
+        if user._id not in user_ids:
+            entity_id = f'#creator#{len(user_ids)}'
+            user_ids[user._id] = entity_id
+        else:
+            entity_id = user_ids[user._id]
+        return [
+            Person(crate, entity_id, properties={
+                'name': user.fullname,
+                'affiliation': [e.name for e in user.affiliated_institutions.all()],
+                'isReplacedBy': {
+                    '@id': f'{entity_id}.jpcoar',
+                }
+            }),
+            ContextEntity(crate, f'{entity_id}.jpcoar', properties={
+                '@type': 'Creator',
+                'jpcoar:creatorName': _to_localized(user, 'fullname'),
+                'jpcoar:givenName': _to_localized(user, 'given_name'),
+                'jpcoar:familyName': _to_localized(user, 'family_name'),
+                'jpcoar:affiliation': [{
+                    '@type': 'Affiliation',
+                    'jpcoar:affiliationName': _to_localized(e, 'name'),
+                } for e in user.affiliated_institutions.all()],
+            })
+        ]
+
+    def _create_contributor_entities(self, crate, user, user_ids):
+        if user._id in user_ids:
+            return []
+        entity_id = f'#contributor#{len(user_ids)}'
+        user_ids[user._id] = entity_id
+        return [
+            Person(crate, entity_id, properties={
+                'name': user.fullname,
+                'affiliation': [e.name for e in user.affiliated_institutions.all()],
+                'isReplacedBy': {
+                    '@id': f'{entity_id}.jpcoar',
+                }
+            }),
+            ContextEntity(crate, f'{entity_id}.jpcoar', properties={
+                '@type': 'Contributor',
+                'jpcoar:contributorName': _to_localized(user, 'fullname'),
+                'jpcoar:givenName': _to_localized(user, 'given_name'),
+                'jpcoar:familyName': _to_localized(user, 'family_name'),
+                'jpcoar:affiliation': [{
+                    '@type': 'Affiliation',
+                    'jpcoar:affiliationName': _to_localized(e, 'name'),
+                } for e in user.affiliated_institutions.all()],
+            })
+        ]
+
+class ROCrateFactory(BaseROCrateFactory):
+
+    def __init__(self, node, work_dir, wb, config):
+        super(ROCrateFactory, self).__init__(node, work_dir)
+        self.wb = wb
+        self.config = config
+
+    def _create_log_entity(self, crate, log, user_ids):
+        return ContextEntity(crate, log._id, properties={
+            '@type': 'Action',
+            'name': log.action,
+            'startTime': _to_datetime(log.date),
+            'agent': {
+                '@id': user_ids[log.user._id]
+            } if log.user is not None and log.user._id in user_ids else None,
+            'object': {
+                '@value': json.dumps(log.params),
+            },
+        })
+
+    def _create_project_entities(self, crate, entity_id, node, extra_props=None):
+        props = {
+            '@type': 'CreativeWork',
+            'name': node.title,
+            'description': node.description,
+            'dateCreated': _to_datetime(node.created),
+            'dateModified': _to_datetime(node.modified),
+            'isReplacedBy': {
+                '@id': f'{entity_id}.jpcoar',
+            }
+        }
+        if extra_props:
+            props.update(extra_props)
+        custom_props = {
+            '@type': 'Project',
+            'dc:title': [
+                {
+                    '@value': node.title,
+                },
+            ],
+            'description': {
+                '@type': 'Description',
+                'type': 'Other',
+                'notation': [
+                    {
+                        '@value': node.description,
+                    },
+                ]
+            },
+            'createdAt': _to_date(node.created),
+            'modifiedAt': _to_date(node.modified),
+            'jpcoar:affiliation': [{
+                '@type': 'Affiliation',
+                'jpcoar:affiliationName': _to_localized(e, 'name', default_lang=None),
+            } for e in node.affiliated_institutions.all()],
+        }
+        if node.license:
+            custom_props.update({
+                'dc:rights': ([{
+                    '@id': node.license.url,
+                }] if node.license.url else []) + ([{
+                    '@value': _fill_license_params(node.license.text, node.node_license),
+                }] if node.license.text else []),
+            })
+        return [
+            ContextEntity(crate, entity_id, properties=props),
+            ContextEntity(crate, f'{entity_id}.jpcoar', properties=custom_props)
+        ]
+
+    def _build_ro_crate(self, crate):
+        for project in self._create_project_entities(crate, '#root', self.node, extra_props={
+            'hasPart': {
+                '@id': './',
+            },
+        }):
+            crate.add(project)
+
+        user_ids = {}
+        crate.add(*self._create_creator_entities(crate, self.node.creator, user_ids))
+        crate.add(*sum([self._create_contributor_entities(crate, user, user_ids) for user in self.node.contributors.all()], []))
+
+        crate.add(*sum([
+            self._create_comment_entities(crate, '#root', comment, user_ids)
+            for comment in Comment.objects.filter(node=self.node)
+        ], []))
+
+        files = []
+        addons_config = self.config.get('addons', {})
+        for addon_app in website_settings.ADDONS_AVAILABLE:
+            addon_name = addon_app.short_name
+            if addon_name in addons_config and not addons_config[addon_name].get('enable', True):
+                logger.info(f'Skipped {addon_name}')
+                continue
+            addon = self.node.get_addon(addon_name)
+            if addon is None:
+                continue
+            if not hasattr(addon, 'serialize_waterbutler_credentials'):
+                continue
+            logger.debug(f'ADDON(STORAGE): {addon_name}')
+            provider = self.wb.get_provider(addon_name)
+            for file in provider['data']:
+                files += self._create_file_entities(crate, f'./{addon_name}', WaterButlerObject(file, self.wb), user_ids)
+
+        # TBD
+        # for wiki in node.wikis:
+        #     wiki_ = WikiAsFile(wiki)
+        #     files += _create_file_entities(crate, './wiki/', wiki_, wiki_, user_ids)
+
+        for log in self.node.logs.all():
+            crate.add(self._create_log_entity(crate, log, user_ids))
+
+        for _, _, comments in files:
+            crate.add(*comments)
+        return crate, files
 
 def start_importing(auth, title):
     serializer = NodeSerializer(context={
@@ -252,55 +555,6 @@ def _to_date(d):
 
 def _to_datetime(d):
     return d.isoformat()
-
-def _create_project_entities(crate, entity_id, node, extra_props=None):
-    props = {
-        '@type': 'CreativeWork',
-        'name': node.title,
-        'description': node.description,
-        'dateCreated': _to_datetime(node.created),
-        'dateModified': _to_datetime(node.modified),
-        'isReplacedBy': {
-            '@id': f'{entity_id}.jpcoar',
-        }
-    }
-    if extra_props:
-        props.update(extra_props)
-    custom_props = {
-        '@type': 'Project',
-        'dc:title': [
-            {
-                '@value': node.title,
-            },
-        ],
-        'description': {
-            '@type': 'Description',
-            'type': 'Other',
-            'notation': [
-                {
-                    '@value': node.description,
-                },
-            ]
-        },
-        'createdAt': _to_date(node.created),
-        'modifiedAt': _to_date(node.modified),
-        'jpcoar:affiliation': [{
-            '@type': 'Affiliation',
-            'jpcoar:affiliationName': _to_localized(e, 'name', default_lang=None),
-        } for e in node.affiliated_institutions.all()],
-    }
-    if node.license:
-        custom_props.update({
-            'dc:rights': ([{
-                '@id': node.license.url,
-            }] if node.license.url else []) + ([{
-                '@value': _fill_license_params(node.license.text, node.node_license),
-            }] if node.license.text else []),
-        })
-    return [
-        ContextEntity(crate, entity_id, properties=props),
-        ContextEntity(crate, f'{entity_id}.jpcoar', properties=custom_props)
-    ]
 
 def _fill_license_params(license_text, node_license):
     params = node_license.to_json()
@@ -349,208 +603,6 @@ def _to_localized_dict(o, prop):
         '@language': 'ja',
     })
     return items
-
-def _create_creator_entities(crate, user, user_ids):
-    if user._id not in user_ids:
-        entity_id = f'#creator#{len(user_ids)}'
-        user_ids[user._id] = entity_id
-    else:
-        entity_id = user_ids[user._id]
-    return [
-        Person(crate, entity_id, properties={
-            'name': user.fullname,
-            'affiliation': [e.name for e in user.affiliated_institutions.all()],
-            'isReplacedBy': {
-                '@id': f'{entity_id}.jpcoar',
-            }
-        }),
-        ContextEntity(crate, f'{entity_id}.jpcoar', properties={
-            '@type': 'Creator',
-            'jpcoar:creatorName': _to_localized(user, 'fullname'),
-            'jpcoar:givenName': _to_localized(user, 'given_name'),
-            'jpcoar:familyName': _to_localized(user, 'family_name'),
-            'jpcoar:affiliation': [{
-                '@type': 'Affiliation',
-                'jpcoar:affiliationName': _to_localized(e, 'name'),
-            } for e in user.affiliated_institutions.all()],
-        })
-    ]
-
-def _create_contributor_entities(crate, user, user_ids):
-    if user._id in user_ids:
-        return []
-    entity_id = f'#contributor#{len(user_ids)}'
-    user_ids[user._id] = entity_id
-    return [
-        Person(crate, entity_id, properties={
-            'name': user.fullname,
-            'affiliation': [e.name for e in user.affiliated_institutions.all()],
-            'isReplacedBy': {
-                '@id': f'{entity_id}.jpcoar',
-            }
-        }),
-        ContextEntity(crate, f'{entity_id}.jpcoar', properties={
-            '@type': 'Contributor',
-            'jpcoar:contributorName': _to_localized(user, 'fullname'),
-            'jpcoar:givenName': _to_localized(user, 'given_name'),
-            'jpcoar:familyName': _to_localized(user, 'family_name'),
-            'jpcoar:affiliation': [{
-                '@type': 'Affiliation',
-                'jpcoar:affiliationName': _to_localized(e, 'name'),
-            } for e in user.affiliated_institutions.all()],
-        })
-    ]
-
-def _create_comment_entities(crate, parent_id, comment, user_ids):
-    comment_id = f'#comment#{comment._id}'
-    r = [ContextEntity(crate, comment_id, properties={
-        '@type': 'Comment',
-        'dateCreated': _to_datetime(comment.created),
-        'dateModified': _to_datetime(comment.modified),
-        'parentItem': {
-            '@id': parent_id,
-        },
-        'text': comment.content,
-        'author': {
-            '@id': user_ids[comment.user._id]
-        } if comment.user._id in user_ids else None
-    })]
-    for reply in Comment.objects.filter(target___id=comment._id):
-        r += _create_comment_entities(crate, comment_id, reply, user_ids)
-    return r
-
-def _create_file_entities(crate, base_path, node, wb_file, user_ids):
-    r = []
-    # TBD test
-    web_file = BaseFileNode.objects.filter(
-        _path=wb_file.path,
-        provider=wb_file.provider,
-        target_object_id=node.id,
-        deleted=None,
-        target_content_type_id=ContentType.objects.get_for_model(AbstractNode),
-    ).order_by('-id').first()
-
-    path = os.path.join(base_path, wb_file.name)
-    if wb_file.attributes['kind'] == 'folder':
-        path += '/'
-        wb_files = wb_file.get_files()
-        for child in wb_files:
-            r += _create_file_entities(crate, path, node, child, user_ids)
-        crate.add(DataEntity(crate, path, properties={
-            '@type': 'StorageProvider' if wb_file.path == '/' else 'Folder',
-            'name': wb_file.name,
-            'hasPart': [
-                {'@id': f'{path}{child.name}' if child.attributes['kind'] == 'folder' else f'{path[2:]}{child.name}'}
-                for child in wb_files
-            ]
-        }))
-    else:
-        comments = []
-        if web_file is not None:
-            comments = sum([_create_comment_entities(crate, path, c, user_ids) for c in Comment.objects.filter(root_target=web_file)], []) if web_file is not None and hasattr(web_file, 'comments') else []
-        r.append((path, wb_file, comments))
-        crate.add_file(path, dest_path=path, properties={
-            'name': wb_file.name,
-            'encodingFormat': wb_file.contentType,
-            'contentSize': str(wb_file.size),
-            'dateModified': wb_file.modified_utc,
-            'dateCreated': wb_file.created_utc,
-        })
-    return r
-
-def _create_log_entity(crate, log, user_ids):
-    return ContextEntity(crate, log._id, properties={
-        '@type': 'Action',
-        'name': log.action,
-        'startTime': _to_datetime(log.date),
-        'agent': {
-            '@id': user_ids[log.user._id]
-        } if log.user is not None and log.user._id in user_ids else None,
-        'object': {
-            '@value': json.dumps(log.params),
-        },
-    })
-
-def _ro_crate_path_list(node, work_dir, wb, config, task):
-    crate, files = _build_ro_crate(node, wb, config)
-    metadata_file = os.path.join(work_dir, 'ro-crate-metadata.json')
-    zip_path = os.path.join(work_dir, 'work.zip')
-    crate.write_zip(zip_path)
-    with ZipFile(zip_path, 'r') as zf:
-        with zf.open('ro-crate-metadata.json') as f:
-            metadata = f.read()
-            with open(metadata_file, 'wb') as df:
-                df.write(metadata)
-    yield {
-        'fs': metadata_file,
-        'n': 'ro-crate-metadata.json',
-    }
-    tmp_path = os.path.join(work_dir, 'temp.dat')
-    for path, file, _ in files:
-        logger.info(f'Downloading... {path}')
-        assert path.startswith('./'), path
-        with open(tmp_path, 'wb') as df:
-            file.download_to(df)
-        yield {
-            'fs': tmp_path,
-            'n': path[2:],
-        }
-
-def _build_ro_crate(node, wb, config):
-    crate = ROCrate()
-    crate.metadata.extra_terms.update({
-        # TBD RO-Crateスキーマ定義
-        '@vocab': 'https://terms.rcos.nii.ac.jp/schema/1.0/',
-        'isReplacedBy': 'http://purl.org/dc/terms/isReplacedBy',
-        'dc': 'http://purl.org/dc/terms/',
-        'datacite': 'https://schema.datacite.org/meta/kernel-4/',
-        'jpcoar': 'https://github.com/JPCOAR/schema/blob/master/1.0/',
-    })
-
-    for project in _create_project_entities(crate, '#root', node, extra_props={
-        'hasPart': {
-            '@id': './',
-        },
-    }):
-        crate.add(project)
-
-    user_ids = {}
-    crate.add(*_create_creator_entities(crate, node.creator, user_ids))
-    crate.add(*sum([_create_contributor_entities(crate, user, user_ids) for user in node.contributors.all()], []))
-
-    crate.add(*sum([
-        _create_comment_entities(crate, '#root', comment, user_ids)
-        for comment in Comment.objects.filter(node=node)
-    ], []))
-
-    files = []
-    addons_config = config.get('addons', {})
-    for addon_app in website_settings.ADDONS_AVAILABLE:
-        addon_name = addon_app.short_name
-        if addon_name in addons_config and not addons_config[addon_name].get('enable', True):
-            logger.info(f'Skipped {addon_name}')
-            continue
-        addon = node.get_addon(addon_name)
-        if addon is None:
-            continue
-        if not hasattr(addon, 'serialize_waterbutler_credentials'):
-            continue
-        logger.debug(f'ADDON(STORAGE): {addon_name}')
-        provider = wb.get_provider(addon_name)
-        for file in provider['data']:
-            files += _create_file_entities(crate, f'./{addon_name}', node, WaterButlerObject(file, wb, addon_name), user_ids)
-
-    # TBD
-    # for wiki in node.wikis:
-    #     wiki_ = WikiAsFile(wiki)
-    #     files += _create_file_entities(crate, './wiki/', wiki_, wiki_, user_ids)
-
-    for log in node.logs.all():
-        crate.add(_create_log_entity(crate, log, user_ids))
-
-    for _, _, comments in files:
-        crate.add(*comments)
-    return crate, files
 
 def to_metadata_value(value):
     return {
@@ -606,10 +658,9 @@ def export_project(self, user_id, node_id, config):
     })
     work_dir = tempfile.mkdtemp()
     try:
-        zfly = zipfly.ZipFly(paths=_ro_crate_path_list(node, work_dir, wb, config, self))
+        rocrate = ROCrateFactory(node, work_dir, wb, config)
         zip_path = os.path.join(work_dir, 'package.zip')
-        with open(zip_path, 'wb') as f:
-            shutil.copyfileobj(GeneratorIOStream(zfly.generator()), f)
+        rocrate.download_to(zip_path)
         # TBD
         file_name_ = 'example.zip'
         folder_name = 'weko'

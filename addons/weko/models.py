@@ -13,6 +13,7 @@ from osf.models.base import BaseModel
 from osf.models.files import File, Folder, BaseFileNode
 from osf.models.metaschema import RegistrationSchema
 from osf.utils.fields import NonNaiveDateTimeField
+from website import settings as website_settings
 
 from .serializer import WEKOSerializer
 from .provider import WEKOProvider
@@ -162,7 +163,7 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         if not self.has_auth:
             raise exceptions.AddonError('Addon is not authorized')
         provider = WEKOProvider(self.external_account)
-        default_provider = self.owner.get_addon('osfstorage')
+        default_provider = self.get_default_provider()
         r = {
             'default_storage': default_provider.serialize_waterbutler_credentials(),
         }
@@ -182,7 +183,7 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         if not self.folder_id:
             raise exceptions.AddonError('WEKO is not configured')
         provider = WEKOProvider(self.external_account)
-        default_provider = self.owner.get_addon('osfstorage')
+        default_provider = self.get_default_provider()
         schema_id = RegistrationSchema.objects.get(name=settings.REGISTRATION_SCHEMA_NAME)._id
         return {
             'nid': self.owner._id,
@@ -206,6 +207,22 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
                 'urls': {
                     'view': url,
                     'download': url + '?action=download'
+                },
+            },
+        )
+
+    def create_waterbutler_deposit_log(self, auth, action, metadata):
+        self.owner.add_log(
+            'weko_{0}'.format(action),
+            auth=auth,
+            params={
+                'project': self.owner.parent_id,
+                'node': self.owner._id,
+                'dataset': self.index_title,
+                'filename': metadata['materialized'].strip('/'),
+                'path': metadata['materialized'],
+                'urls': {
+                    'view': metadata['item_html_url'],
                 },
             },
         )
@@ -240,6 +257,20 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
             },
             'registries': self._as_destinations(schema_id, index, ''),
         }
+
+    def get_default_provider(self):
+        addon = self.owner.get_addon('osfstorage')
+        if addon.complete:
+            return addon
+        for addon in self.owner.get_addons():
+            if not addon.complete:
+                continue
+            if addon.short_name not in website_settings.ADDONS_AVAILABLE_DICT:
+                continue
+            config = website_settings.ADDONS_AVAILABLE_DICT[addon.short_name]
+            if config.for_institutions:
+                return addon
+        raise IOError('No default or institutional storages')
 
     def _validate_index_id(self, index, index_id):
         if index.identifier == index_id:
