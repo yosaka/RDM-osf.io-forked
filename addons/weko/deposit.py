@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import io
 import logging
+import mimetypes
 import os
 import shutil
 import tempfile
@@ -19,6 +20,8 @@ from . import settings as weko_settings
 
 logger = logging.getLogger('addons.weko.views')
 
+ROCRATE_DATASET_MIME_TYPE = 'application/rdm-dataset'
+ROCRATE_PROJECT_MIME_TYPE = 'application/rdm-project'
 
 class ROCrateFactory(BaseROCrateFactory):
 
@@ -29,7 +32,7 @@ class ROCrateFactory(BaseROCrateFactory):
     def _build_ro_crate(self, crate):
         user_ids = {}
         files = []
-        for file in self.folder.get_files(_internal=True):
+        for file in self.folder.get_files():
             files += self._create_file_entities(crate, f'./', file, user_ids)
         for _, _, comments in files:
             crate.add(*comments)
@@ -40,12 +43,16 @@ def _download(node, file, tmp_dir):
     if file.kind == 'file':
         download_file_path = os.path.join(tmp_dir, file.name)
         with open(os.path.join(download_file_path), 'wb') as f:
-            file.download_to(f, _internal=True)
-        return download_file_path
+            file.download_to(f)
+        if file.name == 'rdm-project.zip':
+            mtype = ROCRATE_PROJECT_MIME_TYPE
+        else:
+            mtype, _ = mimetypes.guess_type(download_file_path)
+        return download_file_path, mtype
     rocrate = ROCrateFactory(node, tmp_dir, file)
     download_file_path = os.path.join(tmp_dir, 'rocrate.zip')
     rocrate.download_to(download_file_path)
-    return download_file_path
+    return download_file_path, ROCRATE_DATASET_MIME_TYPE
 
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
@@ -64,7 +71,7 @@ def deposit_metadata(self, user_id, index_id, node_id, metadata_node_id, file_me
     weko_addon = node.get_addon(SHORT_NAME)
     weko_addon.set_publish_task_id(metadata_path, self.request.id)
     wb = WaterButlerClient(user, node)
-    file = wb.get_file(path)
+    file = wb.get_file_by_materialized_path(path)
     logger.debug(f'File: {file}')
     if file is None:
         raise KeyError(f'File not found: {materialized_path}')
@@ -75,7 +82,7 @@ def deposit_metadata(self, user_id, index_id, node_id, metadata_node_id, file_me
             'progress': 10,
             'path': metadata_path,
         })
-        download_file_path = _download(node, file, tmp_dir)
+        download_file_path, download_file_type = _download(node, file, tmp_dir)
         filesize = os.path.getsize(download_file_path)
         logger.info(f'Downloaded: {download_file_path} {filesize}')
         self.update_state(state='packaging', meta={
@@ -96,7 +103,7 @@ def deposit_metadata(self, user_id, index_id, node_id, metadata_node_id, file_me
                     shutil.copyfileobj(sf, df)
             with zf.open('data/index.csv', 'w') as f:
                 with io.TextIOWrapper(f, encoding='utf8') as tf:
-                    schema.write_csv(tf, target_index, [download_file_name], schema_id, file_metadata)
+                    schema.write_csv(tf, target_index, [(download_file_name, download_file_type)], schema_id, file_metadata)
         headers = {
             'Packaging': 'http://purl.org/net/sword/3.0/package/SimpleZip',
             'Content-Disposition': 'attachment; filename=payload.zip',
@@ -117,7 +124,7 @@ def deposit_metadata(self, user_id, index_id, node_id, metadata_node_id, file_me
         })
         links = [l for l in respbody['links'] if 'contentType' in l and '@id' in l and l['contentType'] == 'text/html']
         if after_delete_path:
-            file.delete(_internal=True)
+            file.delete()
         weko_addon.create_waterbutler_deposit_log(
             Auth(user),
             'item_deposited',

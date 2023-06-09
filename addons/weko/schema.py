@@ -18,27 +18,14 @@ columns_default = [
 ]
 
 
-def _generate_file_columns(index, download_file_name):
+def _generate_file_columns(index, download_file_name, download_file_type):
     columns = []
     columns.append((f'.file_path[{index}]', f'.ファイルパス[{index}]', '', 'Allow Multiple', download_file_name))
     base_item = f'.metadata.item_1617605131499[{index}]'
     base_file = f'File[{index}]'
     columns.append((f'{base_item}.filename', f'{base_file}.表示名', '', 'Allow Multiple', download_file_name))
-    columns.append((f'{base_item}.accessrole', f'{base_file}.アクセス', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.date[0].dateType', f'{base_file}.オープンアクセスの日付[0].日付タイプ', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.date[0].dateValue', f'{base_file}.オープンアクセスの日付[0].日付', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.displaytype', f'{base_file}.表示形式', '', 'Allow Multiple', 'simple'))
-    columns.append((f'{base_item}.fileDate[0].fileDateType', f'{base_file}.日付[0].日付タイプ', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.fileDate[0].fileDateValue', f'{base_file}.日付[0].日付', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.filesize[0].value', f'{base_file}.サイズ[0].サイズ', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.format', f'{base_file}.フォーマット', '', 'Allow Multiple', 'text/plain'))
-    columns.append((f'{base_item}.groups', f'{base_file}.グループ', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.licensefree', f'{base_file}.自由ライセンス', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.licensetype', f'{base_file}.ライセンス', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.url.label', f'{base_file}.本文URL.ラベル', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.url.objectType', f'{base_file}.本文URL.オブジェクトタイプ', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.url.url', f'{base_file}.本文URL.本文URL', '', 'Allow Multiple', ''))
-    columns.append((f'{base_item}.version', f'{base_file}.バージョン情報', '', 'Allow Multiple', ''))
+    if download_file_type is not None:
+        columns.append((f'{base_item}.format', f'{base_file}.フォーマット', '', 'Allow Multiple', download_file_type))
     return columns
 
 
@@ -355,8 +342,8 @@ def write_csv(f, target_index, download_file_names, schema_id, file_metadata):
     columns = [('.publish_status', '.PUBLISH_STATUS', '', 'Required', 'private')]
     columns.append(('.metadata.path[0]', '.IndexID[0]', '', 'Allow Multiple', target_index.identifier))
     columns.append(('.pos_index[0]', '.POS_INDEX[0]', '', 'Allow Multiple', target_index.title))
-    for i, download_file_name in enumerate(download_file_names):
-        columns += _generate_file_columns(i, download_file_name)
+    for i, (download_file_name, download_file_type) in enumerate(download_file_names):
+        columns += _generate_file_columns(i, download_file_name, download_file_type)
 
     file_metadata_item = [item for item in file_metadata['items'] if item['schema'] == schema_id][0]
     file_metadata_data = file_metadata_item['data']

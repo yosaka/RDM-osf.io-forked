@@ -21,7 +21,7 @@ var _wekoItemButtons = {
         const mode = tb.toolbarMode;
 
         if (tb.options.placement !== 'fileview') {
-            if ((item.data.extra || {}).weko === 'item' || (item.data.extra || {}).weko === 'index') {
+            if ((item.data.extra || {}).weko === 'item') {
                 buttons.push(
                     m.component(Fangorn.Components.button, {
                         onclick: function(event) {
@@ -35,6 +35,26 @@ var _wekoItemButtons = {
                     permissions: {
                         view: true,
                         edit: false
+                    }
+                });
+                buttons.push(
+                    m.component(Fangorn.Components.defaultItemButtons,
+                        {treebeard : tb, mode : mode, item : aritem })
+                );
+            } else if ((item.data.extra || {}).weko === 'index') {
+                buttons.push(
+                    m.component(Fangorn.Components.button, {
+                        onclick: function(event) {
+                            gotoItem(item);
+                        },
+                        icon: 'fa fa-external-link',
+                        className : 'text-info'
+                    }, _('View')));
+                const aritem = Object.assign({}, item);
+                aritem.data = Object.assign({}, item.data, {
+                    permissions: {
+                        view: true,
+                        edit: true
                     }
                 });
                 buttons.push(
@@ -69,7 +89,7 @@ var _wekoItemButtons = {
                 aritem.data = Object.assign({}, item.data, {
                     permissions: {
                         view: true,
-                        edit: false
+                        edit: true
                     }
                 });
                 return m.component(Fangorn.Components.defaultItemButtons,
@@ -328,6 +348,10 @@ function _uploadSuccess(file, item, response) {
     var tb = this;
     console.log(logPrefix, 'Uploaded', item, response);
     const parentItem = _findItem(tb.treeData, item.parentID);
+    if (parentItem && parentItem.data && parentItem.data.extra && parentItem.data.extra.weko === 'draft') {
+        // Nested draft
+        return;
+    }
     const nodeAttrs = Object.fromEntries(Object.entries(parentItem.data).filter(function(kv) {
         return kv[0].match(/^node.+$/);
     }));
