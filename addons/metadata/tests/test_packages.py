@@ -233,7 +233,7 @@ class TestExportAndImport(OsfTestCase):
         zip_buf = io.BytesIO()
         with open(zip_path, 'rb') as f:
             shutil.copyfileobj(f, zip_buf)
-        
+
         with mock.patch.object(ROCrateExtractor, '_download') as mock_request:
             def to_file(f):
                 zip_buf.seek(0)
