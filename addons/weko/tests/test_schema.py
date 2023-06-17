@@ -263,22 +263,22 @@ class TestWEKOSchema(OsfTestCase):
                     ]
                 },
                 'item_1617186499011': {
-                    "attribute_name": "Rights",
-                    "attribute_value_mlt": [
+                    'attribute_name': 'Rights',
+                    'attribute_value_mlt': [
                         {
-                            "subitem_1522650717957": "en",
-                            "subitem_1522650727486": "http://opensource.org/licenses/MIT",
-                            "subitem_1522651041219": "LONG DESCRIPTION FOR RIGHTS"
+                            'subitem_1522650717957': 'en',
+                            'subitem_1522650727486': 'http://opensource.org/licenses/MIT',
+                            'subitem_1522651041219': 'LONG DESCRIPTION FOR RIGHTS'
                         }
                     ]
                 },
                 'item_1617186626617': {
-                    "attribute_name": "Description",
-                    "attribute_value_mlt": [
+                    'attribute_name': 'Description',
+                    'attribute_value_mlt': [
                         {
-                            "subitem_description": "テストプロジェクトの説明",
-                            "subitem_description_language": "ja",
-                            "subitem_description_type": "Abstract"
+                            'subitem_description': 'テストプロジェクトの説明',
+                            'subitem_description_language': 'ja',
+                            'subitem_description_type': 'Abstract'
                         }
                     ]
                 },
