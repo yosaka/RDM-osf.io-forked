@@ -487,7 +487,7 @@ function reserveMetadataRefresh(item, timeout, retries, callback) {
                     retries - 1,
                     callback
                 );
-            },
+            }
         );
     }, timeout);
 }
