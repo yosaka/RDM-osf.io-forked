@@ -115,12 +115,14 @@ class TestExportAndImport(OsfTestCase):
         self.wb, _ = _create_waterbutler_client(self.node, {
             'osfstorage': [
                 {
+                    'provider': 'osfstorage',
                     'kind': 'folder',
                     'name': 'sample',
                     'path': '/SAMPLE/',
                     'materialized': '/sample/',
                     'children': [
                         {
+                            'provider': 'osfstorage',
                             'kind': 'file',
                             'name': 'file_in_folder',
                             'path': file.path,
@@ -128,12 +130,14 @@ class TestExportAndImport(OsfTestCase):
                             'content': b'FOLDER_DATA',
                         },
                         {
+                            'provider': 'osfstorage',
                             'kind': 'folder',
                             'name': 'sub_folder',
                             'path': '/SUB_FOLDER/',
                             'materialized': '/sample/sub_folder/',
                             'children': [
                                 {
+                                    'provider': 'osfstorage',
                                     'kind': 'file',
                                     'name': 'file_in_sub_folder',
                                     'path': sub_file.path,
@@ -143,6 +147,7 @@ class TestExportAndImport(OsfTestCase):
                             ],
                         },
                         {
+                            'provider': 'osfstorage',
                             'kind': 'folder',
                             'name': 'empty',
                             'path': '/EMPTY/',
@@ -152,6 +157,7 @@ class TestExportAndImport(OsfTestCase):
                     ],
                 },
                 {
+                    'provider': 'osfstorage',
                     'kind': 'file',
                     'name': 'file_in_root',
                     'path': root_file.path,

@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 from datetime import timedelta
+import json
 import logging
+from datetime import datetime
+import os
+import re
+
 from addons.base import exceptions
 from addons.base.models import (BaseOAuthNodeSettings, BaseOAuthUserSettings,
                                 BaseStorageAddon)
@@ -15,6 +20,9 @@ from osf.models.metaschema import RegistrationSchema
 from osf.utils.fields import NonNaiveDateTimeField
 from website import settings as website_settings
 
+from addons.metadata import SHORT_NAME as METADATA_SHORT_NAME
+from addons.metadata.packages import to_metadata_value, fill_license_params
+
 from .serializer import WEKOSerializer
 from .provider import WEKOProvider
 from .client import Client
@@ -23,6 +31,26 @@ from . import settings
 
 
 logger = logging.getLogger(__name__)
+
+
+def _to_creators_json(users):
+    return json.dumps([
+        _to_user_json(user)
+        for user in users
+    ])
+
+def _to_user_json(user):
+    return {
+        'number': user.erad,
+        'name_ja': ''.join([user.family_name_ja, user.middle_names_ja, user.given_name_ja]),
+        'name_en': ' '.join([user.given_name, user.middle_names, user.family_name]),
+    }
+
+def _metadata_entry_is_empty(entry):
+    if 'value' not in entry:
+        return True
+    value = entry['value']
+    return value == ''
 
 
 class WEKOFileNode(BaseFileNode):
@@ -195,6 +223,9 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         }
 
     def create_waterbutler_log(self, auth, action, metadata):
+        if action in ['file_added', 'folder_created'] and self._is_top_level_draft(metadata):
+            logger.debug(f'Generating file metadata: {action}, {metadata}')
+            self._generate_draft_metadata(metadata, auth)
         url = self.owner.web_url_for('addon_view_or_download_file', path=metadata['path'], provider='weko')
         self.owner.add_log(
             'weko_{0}'.format(action),
@@ -300,6 +331,18 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
             r += self._as_destinations(schema_id, child, parent + index.title + ' > ')
         return r
 
+    def _is_top_level_draft(self, metadata):
+        extra = metadata.get('extra', None)
+        if not extra:
+            return False
+        source = extra.get('source', None)
+        if not source:
+            return False
+        path = source.get('materialized_path', None)
+        if not path:
+            return False
+        return re.match(r'^\/\.weko\/[^\/]+\/[^\/]+\/?$', path)
+
     ##### Callback overrides #####
 
     def after_delete(self, user):
@@ -309,6 +352,67 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
     def on_delete(self):
         self.deauthorize(add_log=False)
         self.save()
+
+    def _generate_draft_metadata(self, metadata, auth):
+        metadata_addon = self.owner.get_addon(METADATA_SHORT_NAME)
+        if metadata_addon is None:
+            logger.warn('Metadata addon is not configured')
+            return None
+        provider = metadata['provider']
+        materialized = metadata['materialized']
+        filepath = f'{provider}{materialized}'
+        file_metadata = metadata_addon.get_file_metadata_for_path(filepath)
+        _, filename = os.path.split(filepath.rstrip('/'))
+        schema_id = RegistrationSchema.objects.get(name=settings.REGISTRATION_SCHEMA_NAME)._id
+        node = self.owner
+        default_data = {
+            'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
+            'grdm-file:Title.ja': to_metadata_value(f'{filename} - {node.title}'),
+            'grdm-file:Description Abstract.ja': to_metadata_value(node.description),
+            'grdm-file:Creator': to_metadata_value(_to_creators_json([auth.user] if auth is not None else [])),
+            'grdm-file:resourcetype': to_metadata_value('dataset'),
+        }
+        if node.license:
+            default_data.update({
+                'grdm-file:Rights Resource': to_metadata_value(node.license.url),
+                'grdm-file:Rights Description': to_metadata_value(
+                    fill_license_params(node.license.text, node.node_license)
+                ),
+            })
+        if file_metadata is None:
+            file_metadata = {
+                'path': filepath,
+                'folder': False,
+                'hash': '',
+                'items': [
+                    {
+                        'active': True,
+                        'schema': schema_id,
+                        'data': default_data,
+                    },
+                ],
+            }
+        else:
+            if 'items' not in file_metadata:
+                file_metadata['items'] = []
+            items = [i for i in file_metadata['items'] if i.get('schema', None) == schema_id]
+            if len(items) == 0:
+                file_metadata['items'].append({
+                    'active': True,
+                    'schema': schema_id,
+                    'data': default_data,
+                })
+            else:
+                item = items[0]
+                if 'data' not in item:
+                    item['data'] = {}
+                for k, v in default_data.items():
+                    if k in item['data'] and not _metadata_entry_is_empty(item['data'][k]):
+                        continue
+                    item['data'][k] = v
+        metadata_addon.set_file_metadata(filepath, file_metadata)
+        logger.info(f'Draft metadata {filepath}, {file_metadata}')
+        return file_metadata
 
 
 class PublishTask(BaseModel):

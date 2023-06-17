@@ -50,6 +50,38 @@
         },
         {
           "type": "string",
+          "format": "textarea",
+          "qid": "grdm-file:Description Abstract.ja",
+          "nav": "説明 - アブストラクト (日本語)",
+          "title": "説明 - アブストラクト (日本語)",
+          "required": false
+        },
+        {
+          "type": "string",
+          "format": "textarea",
+          "qid": "grdm-file:Description Abstract.en",
+          "nav": "Description - Abstract (English)",
+          "title": "Description - Abstract (English)",
+          "required": false
+        },
+        {
+          "type": "string",
+          "format": "text",
+          "qid": "grdm-file:Rights Resource",
+          "nav": "Rights Resource URI (English)",
+          "title": "Rights Resource URI (English)",
+          "required": false
+        },
+        {
+          "type": "string",
+          "format": "textarea",
+          "qid": "grdm-file:Rights Description",
+          "nav": "Rights Description (English)",
+          "title": "Rights Description (English)",
+          "required": false
+        },
+        {
+          "type": "string",
           "format": "file-creators",
           "qid": "grdm-file:Creator",
           "nav": "Creator",

@@ -96,15 +96,6 @@ api_routes = {
                 '/project/<pid>/{}/index/<index_id>/files/<mnode>/<path:filepath>'.format(SHORT_NAME),
                 '/project/<pid>/node/<nid>/{}/index/<index_id>/files/<mnode>/<path:filepath>'.format(SHORT_NAME),
             ],
-            'post',
-            views.weko_generate_draft_metadata,
-            json_renderer,
-        ),
-        Rule(
-            [
-                '/project/<pid>/{}/index/<index_id>/files/<mnode>/<path:filepath>'.format(SHORT_NAME),
-                '/project/<pid>/node/<nid>/{}/index/<index_id>/files/<mnode>/<path:filepath>'.format(SHORT_NAME),
-            ],
             'put',
             views.weko_publish_file,
             json_renderer,

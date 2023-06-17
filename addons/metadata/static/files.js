@@ -1574,6 +1574,8 @@ function MetadataButtons() {
       return;
     }
     const remains = items.filter(function(item) {
+      return item.data && item.data.nodeApiUrl;
+    }).filter(function(item) {
       const text = $('.td-title.tb-td[data-id="' + item.id + '"] .title-text');
       if (text.length === 0) {
         return true;
@@ -2317,6 +2319,23 @@ if (contextVars.metadataAddonEnabled) {
         metadataUrl += '/';
       }
       btn.loadMetadata(nodeId, metadataUrl + 'metadata/', callback);
+    },
+    getMetadata: function(nodeId, path) {
+      if (!btn.contexts) {
+        return undefined;
+      }
+      const context = btn.contexts[nodeId];
+      if (!context) {
+        return undefined;
+      }
+      const files = (context.projectMetadata || {}).files || [];
+      const results = files.filter(function(metadata) {
+        return metadata.path === path;
+      });
+      if (results.length === 0) {
+        return null;
+      }
+      return results[0];
     },
   };
   if ($('#fileViewPanelLeft').length > 0) {

@@ -390,18 +390,24 @@ class BaseROCrateFactory(object):
             if creator is not None and creator._id in user_ids:
                 props['creator'] = user_ids[creator._id]
             crate.add_file(path, dest_path=path, properties=props)
-        self._create_file_metadata_entities(crate, path)
+        self._create_file_metadata_entities(crate, path, self._get_materialized_path(wb_file))
         return r
 
-    def _create_file_metadata_entities(self, crate, path):
+    def _get_materialized_path(self, wb_file):
+        if 'materialized' not in wb_file.attributes:
+            raise ValueError('Materialized path not defined')
+        return wb_file.attributes['provider'] + wb_file.attributes['materialized']
+
+    def _create_file_metadata_entities(self, crate, path, file_path):
         metadata = self.node.get_addon(SHORT_NAME)
         if metadata is None:
             return
-        file_path = path[2:] if path.startswith('./') else path
         file_metadata = metadata.get_file_metadata_for_path(file_path, resolve_parent=False)
         if file_metadata is None:
             return
-        file_entity_id = path if file_metadata['folder'] else file_path
+        file_entity_id = path
+        if not file_metadata['folder'] and file_entity_id.startswith('./'):
+            file_entity_id = file_entity_id[2:]
         for i, entity in enumerate(convert_metadata_to_json_ld_entities(file_metadata)):
             props = {
                 '@context': 'https://purl.org/rdm/file-metadata/0.1',
@@ -565,7 +571,7 @@ class ROCrateFactory(BaseROCrateFactory):
                 'dc:rights': ([{
                     '@id': node.license.url,
                 }] if node.license.url else []) + ([{
-                    '@value': _fill_license_params(node.license.text, node.node_license),
+                    '@value': fill_license_params(node.license.text, node.node_license),
                 }] if node.license.text else []),
             })
         return [
@@ -836,7 +842,7 @@ def _to_date(d):
 def _to_datetime(d):
     return d.isoformat()
 
-def _fill_license_params(license_text, node_license):
+def fill_license_params(license_text, node_license):
     params = node_license.to_json()
     for k, v in params.items():
         pk = _snake_to_camel(k)
