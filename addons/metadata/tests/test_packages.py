@@ -223,7 +223,11 @@ class TestExportAndImport(OsfTestCase):
         assert_equals(len([e for e in json_entities['@graph'] if e['@type'] == 'Action']), 0)
 
     def test_simple(self):
-        config = {}
+        config = {
+            'addons': {
+                'osfstorage': {},
+            }
+        }
         rocrate = ROCrateFactory(self.node, self.work_dir, self.wb, config)
         zip_path = os.path.join(self.work_dir, 'package.zip')
         rocrate.download_to(zip_path)
