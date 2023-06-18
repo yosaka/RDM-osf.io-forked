@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from datetime import timedelta
-import json
 import logging
 from datetime import datetime
 import os
@@ -21,30 +20,22 @@ from osf.utils.fields import NonNaiveDateTimeField
 from website import settings as website_settings
 
 from addons.metadata import SHORT_NAME as METADATA_SHORT_NAME
-from addons.metadata.packages import to_metadata_value, fill_license_params
+from addons.metadata.packages import (
+    to_metadata_value,
+    fill_license_params,
+    to_creators_json,
+)
 
 from .serializer import WEKOSerializer
 from .provider import WEKOProvider
 from .client import Client
 from .apps import SHORT_NAME
+from .deposit import ROCRATE_FILENAME_PATTERN
 from . import settings
 
 
 logger = logging.getLogger(__name__)
 
-
-def _to_creators_json(users):
-    return json.dumps([
-        _to_user_json(user)
-        for user in users
-    ])
-
-def _to_user_json(user):
-    return {
-        'number': user.erad,
-        'name_ja': ''.join([user.family_name_ja, user.middle_names_ja, user.given_name_ja]),
-        'name_en': ' '.join([user.given_name, user.middle_names, user.family_name]),
-    }
 
 def _metadata_entry_is_empty(entry):
     if 'value' not in entry:
@@ -223,7 +214,8 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         }
 
     def create_waterbutler_log(self, auth, action, metadata):
-        if action in ['file_added', 'folder_created'] and self._is_top_level_draft(metadata):
+        if action in ['file_added', 'folder_created'] and self._is_top_level_draft(metadata) and \
+           not ROCRATE_FILENAME_PATTERN.match(metadata['name']):
             logger.debug(f'Generating file metadata: {action}, {metadata}')
             self._generate_draft_metadata(metadata, auth)
         url = self.owner.web_url_for('addon_view_or_download_file', path=metadata['path'], provider='weko')
@@ -369,7 +361,7 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
             'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
             'grdm-file:Title.ja': to_metadata_value(f'{filename} - {node.title}'),
             'grdm-file:Description Abstract.ja': to_metadata_value(node.description),
-            'grdm-file:Creator': to_metadata_value(_to_creators_json([auth.user] if auth is not None else [])),
+            'grdm-file:Creator': to_metadata_value(to_creators_json([auth.user] if auth is not None else [])),
             'grdm-file:resourcetype': to_metadata_value('dataset'),
         }
         if node.license:

@@ -39,6 +39,12 @@ from addons.weko import settings as weko_settings
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_ADDONS_FILES = [{
+    'materialized': '/.weko/',
+    'enable': False,
+}]
+
+
 class RequestWrapper(object):
     def __init__(self, auth):
         self.auth = auth
@@ -346,9 +352,15 @@ class BaseROCrateFactory(object):
             shutil.copyfileobj(GeneratorIOStream(zfly.generator()), f)
         logger.debug(f'Downloaded: {os.path.getsize(zip_path)}')
 
+    def _is_file_archivable(self, wb_file):
+        return True
+
     def _create_file_entities(self, crate, base_path, wb_file, user_ids):
-        r = []
         path = os.path.join(base_path, wb_file.name)
+        if not self._is_file_archivable(wb_file):
+            logger.info(f'File is not target: {path}')
+            return []
+        r = []
         if wb_file.attributes['kind'] == 'folder':
             path += '/'
             wb_files = wb_file.get_files()
@@ -609,6 +621,25 @@ class ROCrateFactory(BaseROCrateFactory):
         crate.add_file(path, dest_path=path, properties=props)
         return r
 
+    def _is_file_archivable(self, wb_file):
+        provider = wb_file.attributes['provider']
+        addons_config = self.config.get('addons', {})
+        materialized = wb_file.attributes['materialized']
+        logger.debug(f'is_file_archivable: {materialized}, provider={provider}, files={addons_config}')
+        if provider not in addons_config:
+            return False
+        files = addons_config[provider].get('files', [])
+        if len(files) == 0:
+            files = DEFAULT_ADDONS_FILES
+        files = [
+            f
+            for f in files
+            if f['materialized'] == materialized
+        ]
+        if len(files) == 0:
+            return True
+        return files[0].get('enable', False)
+
     def _build_ro_crate(self, crate):
         for project in self._create_project_entities(crate, '#root', self.node, extra_props={
             'hasPart': {
@@ -638,9 +669,14 @@ class ROCrateFactory(BaseROCrateFactory):
                 continue
             if not hasattr(addon, 'serialize_waterbutler_credentials'):
                 continue
+            # TBD: addons
+            if not addon.complete:
+                continue
             logger.debug(f'ADDON(STORAGE): {addon_name}')
             for file in self.wb.get_root_files(addon_name):
                 files += self._create_file_entities(crate, f'./{addon_name}', file, user_ids)
+
+        # TBD: child nodes
 
         for wiki in self.node.wikis.filter(deleted__isnull=True):
             files += self._create_wiki_entities(crate, './wiki/', wiki, user_ids)
@@ -668,6 +704,10 @@ class ROCrateExtractor(object):
         # tags
         for keyword in self.crate.get('#root').properties().get('keywords', []):
             self._ensure_tag(node, keyword)
+
+        # TBD: restore addons
+        # TBD: child nodes
+
         node.save()
 
     def ensure_folders(self, node, wb, path):
@@ -853,6 +893,19 @@ def fill_license_params(license_text, node_license):
         license_text = re.sub(r'{{\s*' + pk + r'\s*}}', v, license_text)
     return license_text
 
+def to_creators_json(users):
+    return json.dumps([
+        _to_user_json(user)
+        for user in users
+    ])
+
+def _to_user_json(user):
+    return {
+        'number': user.erad,
+        'name_ja': ''.join([user.family_name_ja, user.middle_names_ja, user.given_name_ja]),
+        'name_en': ' '.join([user.given_name, user.middle_names, user.family_name]),
+    }
+
 def _snake_to_camel(name):
     components = name.split('_')
     return components[0] + ''.join([c.capitalize() for c in components[1:]])
@@ -946,9 +999,24 @@ def export_project(self, user_id, node_id, config):
         rocrate = ROCrateFactory(node, work_dir, wb, config)
         zip_path = os.path.join(work_dir, 'package.zip')
         rocrate.download_to(zip_path)
-        file_name_ = 'rdm-project.zip'
+        now = datetime.now().strftime('%Y%m%d-%H%M%S')
+        file_name_ = f'.rdm-project-{now}.zip'
         folder_name = 'weko'
-        wb.upload_root_file(zip_path, file_name_, folder_name)
+        uploaded = wb.upload_root_file(zip_path, file_name_, folder_name)
+        default_data = {
+            'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
+            'grdm-file:Title.ja': to_metadata_value(node.title),
+            'grdm-file:Description Abstract.ja': to_metadata_value(node.description),
+            'grdm-file:Creator': to_metadata_value(to_creators_json([user] if user is not None else [])),
+            'grdm-file:resourcetype': to_metadata_value('dataset'),
+        }
+        if node.license:
+            default_data.update({
+                'grdm-file:Rights Resource': to_metadata_value(node.license.url),
+                'grdm-file:Rights Description': to_metadata_value(
+                    fill_license_params(node.license.text, node.node_license)
+                ),
+            })
         metadata = {
             'path': f'weko/{file_name_}',
             'folder': False,
@@ -957,13 +1025,7 @@ def export_project(self, user_id, node_id, config):
                 {
                     'active': True,
                     'schema': schema_id,
-                    'data': {
-                        'grdm-file:pubdate': to_metadata_value(datetime.now().date().isoformat()),
-                        'grdm-file:Title.ja': to_metadata_value(node.title),
-                        'grdm-file:Description.subitem_description_type.ja': to_metadata_value('Other'),
-                        'grdm-file:Description.subitem_description.ja': to_metadata_value(node.description),
-                        'grdm-file:resourcetype': to_metadata_value('dataset'),
-                    },
+                    'data': default_data,
                 }
             ],
         }
@@ -972,11 +1034,16 @@ def export_project(self, user_id, node_id, config):
             'progress': 100,
             'user': user_id,
             'node': node_id,
+            'file': {
+                'data': uploaded.attributes,
+            },
         })
         return {
-            'TEST': True,
             'user': user_id,
             'node': node_id,
+            'file': {
+                'data': uploaded.attributes,
+            },
         }
     finally:
         shutil.rmtree(work_dir)
@@ -1040,6 +1107,13 @@ def get_task_result(auth, task_id):
         if 'node' in result.info:
             node = AbstractNode.load(result.info['node'])
             info['node_url'] = node.web_url_for('view_project')
+            if 'file' in result.info:
+                file = result.info['file']['data']
+                materialized = file['materialized'].lstrip('/')
+                provider = file['provider']
+                file_url = node.web_url_for('addon_view_or_download_file',
+                                            path=materialized, provider=provider)
+                info['file_url'] = file_url
     return {
         'state': result.state,
         'info': info,

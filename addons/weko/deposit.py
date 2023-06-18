@@ -3,6 +3,7 @@ import io
 import logging
 import mimetypes
 import os
+import re
 import shutil
 import tempfile
 from zipfile import ZipFile
@@ -22,6 +23,7 @@ logger = logging.getLogger('addons.weko.views')
 
 ROCRATE_DATASET_MIME_TYPE = 'application/rdm-dataset'
 ROCRATE_PROJECT_MIME_TYPE = 'application/rdm-project'
+ROCRATE_FILENAME_PATTERN = re.compile(r'\.rdm-project([^\.]+)\.zip$')
 
 class ROCrateFactory(BaseROCrateFactory):
 
@@ -44,7 +46,7 @@ def _download(node, file, tmp_dir):
         download_file_path = os.path.join(tmp_dir, file.name)
         with open(os.path.join(download_file_path), 'wb') as f:
             file.download_to(f)
-        if file.name == 'rdm-project.zip':
+        if ROCRATE_FILENAME_PATTERN.match(file.name):
             mtype = ROCRATE_PROJECT_MIME_TYPE
         else:
             mtype, _ = mimetypes.guess_type(download_file_path)
