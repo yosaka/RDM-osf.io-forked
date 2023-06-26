@@ -35,13 +35,13 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
     # @R2022-48
     if not user.aal:
         _aal = "NULL"
-    elif re.search('AAL2', user.aal):
+    elif re.search('https://www.gakunin.jp/profile/AAL2', user.aal):
         _aal = "AAL2"
     else:
         _aal = "AAL1"
     if not user.ial:
         _ial = "NULL"
-    elif re.search('IAL2', user.ial):
+    elif re.search('https://www.gakunin.jp/profile/IAL2', user.ial):
         _ial = "IAL2"
     else:
         _ial = "IAL1"

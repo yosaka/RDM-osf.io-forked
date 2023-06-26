@@ -174,16 +174,18 @@ class InstitutionAuthentication(BaseAuthentication):
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
             if loa.aal == 2:
-                if not re.search('AAL2', aal):
+                if not re.search('https://www.gakunin.jp/profile/AAL2', aal):
                     loa_flag = False
             elif loa.aal == 1:
-                if not re.search('AAL1', aal):
+                # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
+                if not aal:
                     loa_flag = False
             if loa.ial == 2:
-                if not re.search('IAL2', ial):
+                if not re.search('https://www.gakunin.jp/profile/IAL2', ial):
                     loa_flag = False
             elif loa.ial == 1:
-                if not re.search('IAL1', ial):
+                # if not re.search('https://www.gakunin.jp/profile/IAL1', ial):
+                if not ial:
                     loa_flag = False
         if not loa_flag:
             message = 'Institution login failed: Does not meet the required AAL and IAL.'
