@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 ('modifier', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'permissions': (('view_institution_entitlement', 'Can view institution entitlement'), ('admin_institution_entitlement', 'Can manage institution entitlement')),
+                'permissions': (('view_loa', 'Can view loa'), ('admin_loa', 'Can manage loa')),
             },
             bases=(models.Model, osf.models.base.QuerySetExplainMixin),
         ),
