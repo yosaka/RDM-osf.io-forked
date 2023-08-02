@@ -1,172 +1,112 @@
 'use strict';
 
-var ko = require('knockout');
-var m = require('mithril');
-var URI = require('URIjs');
-var $ = require('jquery');
-var Raven = require('raven-js');
+const ko = require('knockout');
+const m = require('mithril');
+const $ = require('jquery');
+const Raven = require('raven-js');
 
-var Fangorn = require('js/fangorn').Fangorn;
-var waterbutler = require('js/waterbutler');
-var $osf = require('js/osfHelpers');
+const fangorn = require('js/fangorn');
+const Fangorn = fangorn.Fangorn;
+const $osf = require('js/osfHelpers');
 
-function changeState(grid, item, version) {
-    item.data.version = version;
-    grid.updateFolder(null, item);
-}
+const _ = require('js/rdmGettext')._;
+const sprintf = require('agh.sprintf').sprintf;
 
-function getLastPathComponent(itemData) {
-    if(itemData.path === undefined) {
-        return undefined;
-    }
-    var pathcomps = itemData.path.split('/');
-    if(itemData.kind == 'folder') {
-        return pathcomps[pathcomps.length - 2];
-    } else {
-        return pathcomps[pathcomps.length - 1];
-    }
-}
+const logPrefix = '[weko]';
+const refreshingIds = {};
+const metadataRefreshingRetries = 3;
+const metadataRefreshingTimeout = 1000;
+const metadataRefreshingTimeoutExp = 2;
+var fileViewButtons = null;
+var hashProcessed = false;
+var uploadCount = 0;
+var uploadReservedHandler = null;
 
 // Define Fangorn Button Actions
-var _wekoItemButtons = {
+const wekoItemButtons = {
     view: function (ctrl, args, children) {
-        var buttons = [];
-        var tb = args.treebeard;
-        var item = args.item;
-        var mode = tb.toolbarMode;
-
-        function _uploadEvent(event, item, col) {
-            event.stopPropagation();
-            tb.dropzone.hiddenFileInput.click();
-            tb.dropzoneItemCache = item;
-        }
-
-        function startCreatingIndex(event, item, col) {
-            console.log('Show modal dialog...');
-            console.log(item);
-            var indexDesc = { 'title_ja': m.prop(''),
-                              'title_en': m.prop('') };
-            var modalContent = [m('.form-group', [
-                                    m('label', 'Title(ja)'),
-                                    m('input[type="text"].form-control', {
-                                            'onchange': m.withAttr('value', indexDesc.title_ja),
-                                            'placeholder': 'New index name(ja)'
-                                        })
-                                  ]),
-                                m('.form-group', [
-                                    m('label', 'Title(en)'),
-                                    m('input[type="text"].form-control', {
-                                            'onchange': m.withAttr('value', indexDesc.title_en),
-                                            'placeholder': 'New index name(en)'
-                                        })
-                                  ])];
-            var modalActions = [m('button.btn.btn-default', {
-                    'onclick': function () {
-                        tb.modal.dismiss();
-                    }
-                }, 'Cancel'),
-                m('button.btn.btn-primary', {
-                    'onclick': function () {
-                        createIndex(item,
-                                    indexDesc.title_ja(),
-                                    indexDesc.title_en(),
-                                    function() { tb.modal.dismiss(); });
-                    }
-                }, 'Next')];
-            tb.modal.update(modalContent, modalActions,
-                            m('h3.break-word.modal-title', 'Input descriptions about new index'));
-        }
-
-        function createIndex(parentItem, titleJa, titleEn, dismissCallback) {
-            console.log('Creating... ' + item + ' - ' + titleJa + ' - ' + titleEn);
-            var parentIndex = null;
-            if(parentItem.data.extra) {
-                parentIndex = parentItem.data.extra.indexId;
-            }
-            $osf.postJSON(
-                    item.data.nodeApiUrl + 'weko/indices/',
-                    ko.toJS({
-                        parent_index: parentIndex,
-                        title_ja: titleJa,
-                        title_en: titleEn
-                    })
-                ).done(function(item){
-                    console.log('Created', item);
-                    item = tb.createItem(item, parentItem.id);
-                    item.notify.update('New index created!', 'success',
-                                       undefined, 1000);
-                    if(dismissCallback) {
-                        dismissCallback();
-                    }
-                });
-        }
+        const buttons = [];
+        const tb = args.treebeard;
+        const item = args.item;
+        const mode = tb.toolbarMode;
 
         if (tb.options.placement !== 'fileview') {
-            var lastItem = getLastPathComponent(item.data);
-            if(item.data.addonFullname || (lastItem != null && lastItem.startsWith('weko:'))) {
-                if (item.kind === 'folder') {
-                    buttons.push(m.component(Fangorn.Components.button, {
-                                                 onclick: function(event) {
-                                                     startCreatingIndex.call(tb, event, item);
-                                                 },
-                                                 icon: 'fa fa-plus',
-                                                 className: 'text-success'
-                                             }, 'Create Index'));
-                    buttons.push(
-                        m.component(Fangorn.Components.button, {
-                            onclick: function (event) {
-                                _uploadEvent.call(tb, event, item);
-                            },
-                            icon: 'fa fa-upload',
-                            className: 'text-success'
-                        }, 'Upload')
-                    );
-                    buttons.push(
-                        m.component(Fangorn.Components.button, {
-                            onclick: function () {
-                                mode(Fangorn.Components.toolbarModes.ADDFOLDER);
-                            },
-                            icon: 'fa fa-plus',
-                            className: 'text-success'
-                        }, 'Create Folder')
-                    );
-                } else if (item.kind === 'file') {
-                    buttons.push(
-                        m.component(Fangorn.Components.button, {
-                            onclick: function (event) {
-                                Fangorn.ButtonEvents._removeEvent.call(tb, event, [item]);
-                            },
-                            icon: 'fa fa-trash',
-                            className: 'text-danger'
-                        }, 'Delete')
-                    );
-                    buttons.push(
-                        m.component(Fangorn.Components.button, {
-                            onclick: function(event) {
-                                gotoItem(item);
-                            },
-                            icon: 'fa fa-external-link',
-                            className : 'text-info'
-                        }, 'View'));
-                }
-            }else{
-                if(item.data.extra != null && item.data.extra.archivable) {
-                    buttons.push(m.component(Fangorn.Components.button, {
-                        onclick: function (event) {
-                            _publish(tb, _findItem(tb.treeData, item.parentID),
-                                     item, item.data);
+            if ((item.data.extra || {}).weko === 'item') {
+                buttons.push(
+                    m.component(Fangorn.Components.button, {
+                        onclick: function(event) {
+                            gotoItem(item);
                         },
-                        icon: 'fa fa-upload',
-                        className: 'text-primary weko-button-publish'
-                    }, 'Publish'));
-                }
-                var defaultButtons = m.component(Fangorn.Components.defaultItemButtons,
+                        icon: 'fa fa-external-link',
+                        className : 'text-info'
+                    }, _('View')));
+                const aritem = Object.assign({}, item);
+                aritem.data = Object.assign({}, item.data, {
+                    permissions: {
+                        view: true,
+                        edit: false
+                    }
+                });
+                buttons.push(
+                    m.component(Fangorn.Components.defaultItemButtons,
+                        {treebeard : tb, mode : mode, item : aritem })
+                );
+            } else if ((item.data.extra || {}).weko === 'index') {
+                buttons.push(
+                    m.component(Fangorn.Components.button, {
+                        onclick: function(event) {
+                            gotoItem(item);
+                        },
+                        icon: 'fa fa-external-link',
+                        className : 'text-info'
+                    }, _('View')));
+                const aritem = Object.assign({}, item);
+                aritem.data = Object.assign({}, item.data, {
+                    permissions: {
+                        view: true,
+                        edit: true
+                    }
+                });
+                buttons.push(
+                    m.component(Fangorn.Components.defaultItemButtons,
+                        {treebeard : tb, mode : mode, item : aritem })
+                );
+            } else if ((item.data.extra || {}).weko === 'draft') {
+                buttons.push(m.component(Fangorn.Components.button, {
+                    onclick: function (event) {
+                        deposit(tb, item);
+                    },
+                    icon: 'fa fa-upload',
+                    className: 'text-primary weko-button-publish'
+                }, _('Deposit')));
+                buttons.push(m.component(Fangorn.Components.defaultItemButtons, {
+                    treebeard : tb, mode : mode, item : item
+                }));
+            } else if ((item.data.extra || {}).weko === 'file') {
+                const aritem = Object.assign({}, item);
+                aritem.data = Object.assign({}, item.data, {
+                    permissions: {
+                        view: true,
+                        edit: false
+                    }
+                });
+                return m.component(Fangorn.Components.defaultItemButtons,
+                    {treebeard : tb, mode : mode, item : aritem });
+            } else if ((item.data.extra || {}).weko) {
+                console.warn('Unknown weko metadata type: ', (item.data.extra || {}).weko);
+            } else if (item.data.kind === 'folder' && item.data.addonFullname) {
+                const aritem = Object.assign({}, item);
+                aritem.data = Object.assign({}, item.data, {
+                    permissions: {
+                        view: true,
+                        edit: true
+                    }
+                });
+                return m.component(Fangorn.Components.defaultItemButtons,
+                    {treebeard : tb, mode : mode, item : aritem });
+            } else {
+                return m.component(Fangorn.Components.defaultItemButtons,
                                       {treebeard : tb, mode : mode, item : item });
-                if(buttons.length == 0) {
-                    return defaultButtons;
-                }else{
-                    return m('span', [buttons, defaultButtons]);
-                }
             }
         }
         return m('span', buttons);
@@ -174,14 +114,18 @@ var _wekoItemButtons = {
 };
 
 function gotoItem (item) {
-    var itemId = /\/weko:item([0-9]+)$/.exec(item.data.path)[1];
-
-    $.getJSON(item.data.nodeApiUrl + 'weko/item_view/' + itemId + '/').done(function (data) {
-        window.open(data.url, '_blank');
-    });
+    if (item.data && item.data.extra && item.data.extra.weko === 'draft') {
+        const url = fangorn.getPersistentLinkFor(item);
+        window.location.href = url;
+        return;
+    }
+    if (!(item.data.extra || {}).weko_web_url) {
+        throw new Error('Missing properties');
+    }
+    window.open(item.data.extra.weko_web_url, '_blank');
 }
 
-function _fangornFolderIcons(item) {
+function wekoFolderIcons(item) {
     if (item.data.iconUrl) {
         return m('img', {
             src: item.data.iconUrl,
@@ -194,22 +138,25 @@ function _fangornFolderIcons(item) {
     return undefined;
 }
 
-function _fangornWEKOTitle(item, col) {
+function wekoWEKOTitle(item, col) {
     var tb = this;
     if (item.data.isAddonRoot && item.connected === false) {
         return Fangorn.Utils.connectCheckTemplate.call(this, item);
     }
     if (item.data.addonFullname) {
-        var contents = [m('weko-name', item.data.name)];
-        return m('span', contents);
+        return m('span', [m('span', item.data.name)]);
     } else {
-        var contents = [m('weko-name.fg-file-links', {
-                                onclick: function () {
-                                    gotoFile(item);
-                                }
-                            }, item.data.name)]
-        var lastComponent = getLastPathComponent(item.data);
-        if(lastComponent !== undefined && ! lastComponent.startsWith('weko:')) {
+        const contents = [
+            m('span.fg-file-links',
+                {
+                    onclick: function () {
+                        gotoItem(item);
+                    }
+                },
+                item.data.name
+            )
+        ];
+        if ((item.data.extra || {}).weko === 'draft') {
             contents.push(
                 m('span.text.text-muted', ' [Draft]')
             );
@@ -218,151 +165,35 @@ function _fangornWEKOTitle(item, col) {
     }
 }
 
-function _fangornColumns(item) {
+function wekoColumns(item) {
+    const treebeard = this;
+    checkAndReserveRefreshingMetadata(
+        item,
+        function(item) {
+            const parentItem = findItem(treebeard.treeData, item.parentID);
+            reserveDeposit(treebeard, item, function() {
+                treebeard.updateFolder(null, parentItem);
+            });
+        }
+    );
     var tb = this;
     var columns = [];
     columns.push({
         data : 'name',
         folderIcons : true,
         filter : true,
-        custom: _fangornWEKOTitle
+        custom: wekoWEKOTitle
     });
+    item.css = (item.css || '') + ' weko-row';
     return columns;
 }
 
-function _getWaterbutlerUrl() {
-    var url = contextVars.waterbutlerURL;
-    if(! url.endsWith('/')) {
-        url += '/';
-    }
-    url += 'v1/resources/' + contextVars.node.id + '/providers/weko';
-    return url;
-}
-
-function _getWaterbutlerParentUrl(parentItem) {
-    if(parentItem.data.materialized !== undefined) {
-        return _getWaterbutlerUrl() + parentItem.data.materialized;
-    }else{
-        return _getWaterbutlerUrl() + '/';
-    }
-}
-
-function _submitDraft(tb, parentItem, contextItem, draftFileData, metadata, dismissCallback) {
-    if(metadata.asWEKOExport) {
-        _submitDraftZip(tb, parentItem, contextItem, draftFileData, metadata, dismissCallback);
-    }else{
-        _submitDraftXml(tb, parentItem, contextItem, draftFileData, metadata, dismissCallback);
-    }
-}
-
-function _putMetadata(tb, parentItem, contextItem, draftFilename,
-                      importFilename, importContent, dismissCallback) {
-    $.ajax({
-        type: 'GET',
-        url: _getWaterbutlerParentUrl(parentItem),
-        dataType: 'json',
-        xhrFields:{withCredentials: true},
-        success: function(data) {
-            console.log(data);
-            var jsonFiles = data.data.filter(function(d) {
-                if(d.attributes && d.type == 'files') {
-                    if(d.attributes.name == importFilename) {
-                        return true;
-                    }
-                }
-                return false;
-              });
-            var putUrl = null;
-            var links = parentItem.data.links;
-            var qsep = '&';
-            if(links === undefined) {
-                links = {'upload': _getWaterbutlerUrl() + '/'};
-                qsep = '?';
-            }
-            if(jsonFiles.length == 0) {
-                // Create file
-                putUrl = links.upload + qsep + 'name=' + encodeURI(importFilename);
-            }else{
-                // Update file
-                var baseUrl = links.upload;
-                baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
-                putUrl =  baseUrl + encodeURI(importFilename);
-            }
-            console.log('Updating/Creating... ', putUrl);
-            $.ajax({
-                type: 'PUT',
-                url: putUrl,
-                dataType: 'json',
-                data: importContent,
-                xhrFields:{withCredentials: true},
-                success: function(data) {
-                    console.log(data);
-                    var indexId = null;
-                    if(parentItem.data.extra) {
-                        indexId = parentItem.data.extra.indexId;
-                    }
-                    $osf.postJSON(
-                            parentItem.data.nodeApiUrl + 'weko/item_log/',
-                            ko.toJS({
-                                index_id: indexId,
-                                title: draftFilename
-                            })
-                        ).done(function(item){
-                            console.log('Log added');
-                            if(contextItem) {
-                                contextItem.notify.update('Successfully published.',
-                                                         'success', undefined, 1000);
-                            }
-                            setTimeout(dismissCallback, 1500)
-                        });
-                },
-                error: function(xhr, textStatus, errorThrown) {
-                    console.log('Error: ' + textStatus);
-                    console.log(errorThrown);
-                    var message = 'Error: Something went wrong when putting item. ' + textStatus;
-                    _showError(tb, message);
-                    dismissCallback();
-                }});
-        },
-        error: function(xhr, textStatus, errorThrown) {
-            console.log('Error: ' + textStatus, errorThrown);
-            var message = 'Error: Something went wrong when retrieving item. ' + textStatus;
-            _showError(tb, message);
-            dismissCallback();
-        }});
-}
-
-function _submitDraftXml(tb, parentItem, contextItem, draftFileData, metadata, dismissCallback) {
-    console.log('confirmed', metadata, draftFileData, parentItem);
-    var draftFilename = getLastPathComponent(draftFileData);
-    var importXmlFilename = draftFilename + '-import.xml';
-    $.get(window.contextVars.node.urls.api + 'weko/metadata/',
-          ko.toJS({filename: draftFilename,
-                   filenames: draftFileData.extra.content_files.join('\n'),
-                   serviceItemType: metadata.serviceItemType})
-        ).done(function(importXml){
-            console.log('Generated', importXml);
-            _putMetadata(tb, parentItem, contextItem, draftFilename,
-                         importXmlFilename,
-                         new XMLSerializer().serializeToString(importXml),
-                         dismissCallback);
-        });
-}
-
-function _submitDraftZip(tb, parentItem, contextItem, draftFileData, metadata, dismissCallback) {
-    console.log('confirmed', metadata, draftFileData, parentItem);
-    var draftFilename = getLastPathComponent(draftFileData);
-    var importZipFilename = draftFilename + '-import.zipimport';
-    _putMetadata(tb, parentItem, contextItem, draftFilename, importZipFilename,
-                 '', dismissCallback);
-}
-
-function _findItem(item, item_id) {
+function findItem(item, item_id) {
     if(item.id == item_id) {
         return item;
     }else if(item.children){
         for(var i = 0; i < item.children.length; i ++) {
-            var found = _findItem(item.children[i], item_id);
+            const found = findItem(item.children[i], item_id);
             if(found) {
                 return found;
             }
@@ -371,7 +202,11 @@ function _findItem(item, item_id) {
     return null;
 }
 
-function _showError(tb, message) {
+function showError(tb, message) {
+    if (!tb) {
+        $osf.growl('WEKO3 Error:', message);
+        return;
+    }
     var modalContent = [
             m('p.m-md', message)
         ];
@@ -385,110 +220,443 @@ function _showError(tb, message) {
     tb.modal.update(modalContent, modalActions, m('h3.break-word.modal-title', 'Error'));
 }
 
-function _publish(tb, parentItem, contextItem, itemData) {
-    $('.weko-button-publish i').attr('class', 'fa fa-spinner fa-pulse fa-3x fa-fw');
-    if(itemData.extra.content_files.length == 0) {
-        console.log('loading', itemData);
-        $.ajax({
-            type: 'GET',
-            url: _getWaterbutlerParentUrl(parentItem),
-            dataType: 'json',
-            xhrFields:{withCredentials: true},
-            success: function(data) {
-                var jsonFiles = data.data.filter(function(d) {
-                    if(d.attributes && d.attributes.name == itemData.name) {
-                        return true;
-                    }
-                    return false;
-                  });
-                if(jsonFiles.length == 0) {
-                    var message = 'Error: Something went wrong when retrieving item.';
-                    _showError(tb, message);
-                    $('.weko-button-publish i').attr('class', 'fa fa-upload');
-                }else{
-                    _processPublish(tb, parentItem, contextItem, jsonFiles[0].attributes);
-                }
-            },
-            error: function(xhr, textStatus, errorThrown) {
-                console.log('Error: ' + textStatus, errorThrown);
-                var message = 'Error: Something went wrong when retrieving item. ' + textStatus;
-                _showError(tb, message);
-                $('.weko-button-publish i').attr('class', 'fa fa-upload');
-            }});
-    }else{
-        _processPublish(tb, parentItem, contextItem, itemData);
+function performDeposit(tb, contextItem) {
+    console.log(logPrefix, 'publish', contextItem);
+    const extra = contextItem.data.extra;
+    var url = contextVars.node.urls.api;
+    if (!url.match(/.*\/$/)) {
+        url += '/';
     }
-}
-
-function _processPublish(tb, parentItem, contextItem, itemData) {
-    console.log('publish', parentItem, itemData);
-    $.getJSON(window.contextVars.node.urls.api + 'weko/serviceitemtype').done(function (data) {
-        console.log('ServiceItemType loaded');
-        $('.weko-button-publish i').attr('class', 'fa fa-upload');
-        var fileDesc = {asWEKOExport: m.prop(false), serviceItemType: m.prop(0)};
-        var modalContent = [m('.form-group', [
-                               m('label', [
-                                   m('input[type=checkbox]',
-                                     {onchange: function() {
-                                                    fileDesc.asWEKOExport(this.checked);
-                                                    $('#service_item_type').prop('disabled', this.checked);
-                                                },
-                                      disabled: ! itemData.extra.has_import_xml}),
-                                   'Import as WEKO EXPORT zip'
-                                 ])
-                              ]),
-                            m('.form-group', [
-                               m('label', 'Service item type'),
-                               m('select.form-control#service_item_type',
-                                  {onchange: m.withAttr('value', fileDesc.serviceItemType),
-                                   disabled: fileDesc.asWEKOExport()},
-                                  data.item_type.map(function(d, i){
-                                      return m('option', { value: i, innerHTML: d.name });
-                                  }))
-                              ])];
-        var modalActions = [m('button.btn.btn-default', {onclick: function () {
-                                tb.modal.dismiss();
-                                tb.updateFolder(null, parentItem);
-                            }}, 'Cancel'),
-                            m('button.btn.btn-primary', {onclick: function () {
-                                $('.weko-button-publish i').attr('class', 'fa fa-spinner fa-pulse fa-3x fa-fw');
-                                tb.modal.dismiss();
-                                _submitDraft(tb,
-                                             parentItem,
-                                             contextItem,
-                                             itemData,
-                                             {asWEKOExport: fileDesc.asWEKOExport(),
-                                              serviceItemType: fileDesc.serviceItemType()},
-                                             function() {
-                                                 $('.weko-button-publish i').attr('class', 'fa fa-upload');
-                                                 tb.updateFolder(null, parentItem);
-                                             });
-                            }}, 'Submit')];
-        tb.modal.update(modalContent, modalActions, m('h3.break-word.modal-title', 'Select file type'));
-    }).fail(function (xhr, status, error) {
-        console.log('Error: ' + status, error);
-        var message = 'Error: Something went wrong when retrieving serviceitemtype. ' + status;
-        _showError(tb, message);
-        $('.weko-button-publish i').attr('class', 'fa fa-upload');
+    url += 'weko/index/' + extra.index
+        + '/files/' + contextItem.data.nodeId + '/' + contextItem.data.provider
+        + contextItem.data.materialized;
+    startDepositing(tb, contextItem);
+    return $osf.putJSON(url, {
+        content_path: extra.source.provider + extra.source.materialized_path,
+        after_delete_path: contextItem.data.path,
+    }).done(function (data) {
+      console.log(logPrefix, 'checking progress...');
+      checkDepositing(tb, contextItem, url);
+    }).fail(function(xhr, status, error) {
+      cancelDepositing(tb, contextItem);
+      const message = _('Error occurred: ') + error;
+      showError(tb, message);
+      Raven.captureMessage('Error while depositing file', {
+        extra: {
+            url: url,
+            status: status,
+            error: error
+        }
+      });
     });
 }
 
-function _uploadSuccess(file, item, response) {
-    var tb = this;
-    console.log('Uploaded', item, response);
-    if(response.data.attributes.extra.archivable) {
-        console.log('Publishing...', response);
-        _publish(tb, _findItem(tb.treeData, item.parentID), item,
-                 response.data.attributes);
-    }else{
-        tb.updateFolder(null, _findItem(tb.treeData, item.parentID));
+function checkDepositing(tb, contextItem, url) {
+    return $.ajax({
+        url: url,
+        type: 'GET',
+        dataType: 'json'
+    }).done(function (data) {
+        console.log(logPrefix, 'loaded: ', data);
+        if (data.data && data.data.attributes && data.data.attributes.error) {
+            cancelDepositing(tb, contextItem);
+            const message = _('Error occurred: ') + data.data.attributes.error;
+            showError(tb, message);
+            return;
+        }
+        if (data.data && data.data.attributes && data.data.attributes.result) {
+            console.log(logPrefix, 'uploaded', data.data.attributes.result);
+            if (tb) {
+                tb.updateFolder(null, findItem(tb.treeData, contextItem.parentID));
+            } else {
+                $('#weko-deposit i')
+                    .addClass('fa-upload')
+                    .removeClass('fa-spinner fa-pulse');
+                $('#weko-deposit').removeClass('disabled');
+                $osf.growl('Success', _('Deposit was successful.'), 'success');
+                const baseUrl = contextVars.node.urls.web + 'files/dir/' + contextItem.data.provider;
+                const index = contextItem.data.materialized.lastIndexOf('/');
+                window.location.href = baseUrl + contextItem.data.materialized.substring(0, index + 1);
+            }
+            return;
+        }
+        if (data.data && data.data.attributes && data.data.attributes.progress) {
+            contextItem.data.progress = data.data.attributes.progress.rate || 0;
+            contextItem.data.uploadState = function() {
+                return 'uploading';
+            };
+            if (tb) {
+                tb.redraw();
+            }
+        }
+        setTimeout(function() {
+            checkDepositing(tb, contextItem, url);
+        }, 1000);
+    }).fail(function(xhr, status, error) {
+        if (status === 'error' && error === 'NOT FOUND') {
+            setTimeout(function() {
+                checkDepositing(tb, contextItem, url);
+            }, 1000);
+            return;
+        }
+        cancelDepositing(tb, contextItem);
+        const message = _('Error occurred: ') + error;
+        showError(tb, message);
+        Raven.captureMessage('Error while retrieving addon info', {
+            extra: {
+                url: url,
+                status: status,
+                error: error
+            }
+        });
+    });
+}
+
+function startDepositing(tb, item) {
+    if (!tb) {
+        $('#weko-deposit i')
+            .removeClass('fa-upload')
+            .addClass('fa-spinner fa-pulse');
+        $('#weko-deposit').addClass('disabled');
+        return;
     }
-    return {};
+    item.inProgress = true;
+    item.data.progress = 0;
+    item.data.uploadState = function() {
+        return 'pending';
+    };
+    tb.redraw();
+}
+
+function cancelDepositing(tb, item) {
+    if (!tb) {
+        $('#weko-deposit i')
+            .addClass('fa-upload')
+            .removeClass('fa-spinner fa-pulse');
+        $('#weko-deposit').removeClass('disabled');
+        return;
+    }
+    item.inProgress = false;
+    item.data.progress = 100;
+    item.data.uploadState = null;
+    tb.redraw();
+}
+
+function reserveDeposit(treebeard, item, cancelCallback) {
+    if (uploadCount <= 0) {
+        deposit(treebeard, item, cancelCallback);
+        return;
+    }
+    if (uploadReservedHandler) {
+        console.warn(logPrefix, 'Upload handler already reserved', item);
+        return;
+    }
+    console.log(logPrefix, 'Reserve upload handler', item);
+    uploadReservedHandler = function() {
+        deposit(treebeard, item, cancelCallback);
+    };
+}
+
+function deposit(treebeard, item, cancelCallback) {
+    showConfirmDeposit(treebeard, item, function(deposit) {
+        if (!deposit) {
+            if (!cancelCallback) {
+                return;
+            }
+            cancelCallback();
+            return;
+        }
+        performDeposit(treebeard, item);
+    });
+}
+
+function showConfirmDeposit(tb, contextItem, callback) {
+    const okHandler = function (dismiss) {
+        dismiss()
+        if (!callback) {
+            return;
+        }
+        callback(true);
+    };
+    const cancelHandler = function (dismiss) {
+        dismiss()
+        if (!callback) {
+            return;
+        }
+        callback(false);
+    };
+    const message = sprintf(
+        _('Do you want to deposit the file/folder "%1$s" to WEKO? This operation is irreversible.'),
+        $osf.htmlEscape(contextItem.data.name)
+    );
+    if (!tb) {
+        const dialog = $('<div class="modal fade" data-backdrop="static"></div>');
+        const close = $('<a href="#" class="btn btn-default" data-dismiss="modal"></a>').text(_('Cancel'));
+        close.click(function() {
+            cancelHandler(function() {
+                dialog.modal('hide');
+            });
+        });
+        const save = $('<a href="#" class="btn btn-primary"></a>').text(_('OK'));
+        save.click(function() {
+            okHandler(function() {
+                dialog.modal('hide');
+            });
+        });
+        const toolbar = $('<div></div>');
+        const container = $('<ul></ul>').css('padding', '0 20px');
+        dialog
+            .append($('<div class="modal-dialog modal-lg"></div>')
+                .append($('<div class="modal-content"></div>')
+                    .append($('<div class="modal-header"></div>')
+                        .append($('<h3></h3>').text(_('Deposit files'))))
+                    .append($('<div class="modal-body"></div>')
+                        .append(message))
+                    .append($('<div class="modal-footer"></div>')
+                        .css('display', 'flex')
+                        .css('align-items', 'center')
+                        .append(close.css('margin-left', 'auto'))
+                        .append(save))));
+        dialog.appendTo($('#treeGrid'));
+        dialog.modal('show');
+        return;
+    }
+    var modalContent = [
+            m('p.m-md', message)
+        ];
+    var modalActions = [
+            m('button.btn.btn-default', {
+                    'onclick': function() {
+                        cancelHandler(function() {
+                            tb.modal.dismiss();
+                        });
+                    }
+                }, _('Cancel')),
+            m('button.btn.btn-primary', {
+                    'onclick': function() {
+                        okHandler(function() {
+                            tb.modal.dismiss();
+                        });
+                    }
+                }, _('OK'))
+        ];
+    tb.modal.update(modalContent, modalActions, m('h3.break-word.modal-title', _('Deposit files')));
+}
+
+function checkAndReserveRefreshingMetadata(item, callback) {
+    if (!item.data) {
+        return;
+    }
+    const id = item.data.id;
+    if (refreshingIds[id]) {
+        // Already reserved
+        return;
+    }
+    const metadatas = searchMetadatas(item);
+    if (metadatas.length === 0 || metadatas.some(function(m) {
+        return m.metadata === undefined;
+    })) {
+        // Not loaded
+        return;
+    }
+    if (metadatas.every(function(m) {
+        return m.metadata;
+    })) {
+        // Already loaded
+        return;
+    }
+    refreshingIds[id] = Date.now();
+    reserveMetadataRefresh(
+        item,
+        metadataRefreshingTimeout,
+        metadataRefreshingRetries,
+        callback
+    );
+}
+
+function reserveMetadataRefresh(item, timeout, retries, callback) {
+    console.log(logPrefix, 'reserveRefreshMetadata', item);
+    setTimeout(function() {
+        contextVars.metadata.loadMetadata(
+            item.data.nodeId,
+            item.data.nodeApiUrl,
+            function() {
+                const metadatas = searchMetadatas(item);
+                if (metadatas.length > 0 && metadatas.every(function(m) {
+                    return m.metadata;
+                })) {
+                    console.log(logPrefix, 'metadata refreshed', metadatas, item);
+                    refreshingIds[item.data.id] = null;
+                    if (!callback) {
+                        return;
+                    }
+                    callback(item);
+                    return;
+                }
+                console.log(logPrefix, 'refreshMetadata', metadatas, item);
+                if (retries <= 0) {
+                    console.log(logPrefix, 'Metadata refreshing cancelled', item);
+                    return;
+                }
+                reserveMetadataRefresh(
+                    item,
+                    timeout * metadataRefreshingTimeoutExp,
+                    retries - 1,
+                    callback
+                );
+            }
+        );
+    }, timeout);
+}
+
+function searchMetadatas(tree, recursive) {
+    const data = tree.data;
+    var r = [];
+    if (data.extra && data.extra.weko === 'draft' && isTopLevelDraft(tree)) {
+        const metadata = contextVars.metadata.getMetadata(
+            data.nodeId,
+            data.provider + data.materialized
+        );
+        r.push({
+            metadata: metadata,
+            item: tree
+        });
+    } else if (recursive && ((data.extra && data.extra.weko === 'index') || data.addonFullname === 'WEKO')) {
+        (tree.children || []).forEach(function(item) {
+            r = r.concat(searchMetadatas(item, recursive));
+        });
+    }
+    return r;
+}
+
+function isTopLevelDraft(item) {
+    const data = item.data;
+    if (!data) {
+        return false;
+    }
+    const extra = data.extra;
+    if (!extra) {
+        return false;
+    }
+    const source = extra.source;
+    if (!source) {
+        return false;
+    }
+    const path = source.materialized_path;
+    if (!path) {
+        return false;
+    }
+    return path.match(/^\/\.weko\/[^\/]+\/[^\/]+\/?$/);
+}
+
+function refreshFileViewButtons(item) {
+    if (item.data.provider !== 'weko') {
+        return;
+    }
+    if (!isTopLevelDraft(item)) {
+        return;
+    }
+    if (!fileViewButtons) {
+        fileViewButtons = $('<div></div>')
+            .addClass('btn-group m-t-xs')
+            .attr('id', 'weko-toolbar');
+    }
+    const buttons = fileViewButtons;
+    buttons.empty();
+    const btn = $('<button></button>')
+        .addClass('btn')
+        .addClass('btn-sm')
+        .addClass('btn-primary')
+        .attr('id', 'weko-deposit');
+    btn.append($('<i></i>').addClass('fa fa-upload'));
+    btn.click(function(event) {
+        deposit(null, item);
+    });
+    btn.append($('<span></span>').text(_('Deposit')));
+    buttons.append(btn);
+    $('#toggleBar .btn-toolbar').append(fileViewButtons);
+}
+
+function processHash(item) {
+    if (hashProcessed) {
+        return;
+    }
+    if (window.location.hash !== '#deposit') {
+        return;
+    }
+    if (item.data.provider !== 'weko') {
+        return;
+    }
+    hashProcessed = true;
+    deposit(null, item);
+}
+
+function initFileView() {
+    const observer = new MutationObserver(refreshIfToolbarExists);
+    function refreshIfToolbarExists() {
+        const toolbar = $('#toggleBar .btn-toolbar');
+        if (toolbar.length === 0) {
+            return;
+        }
+        const item = {
+            data: Object.assign(
+                {},
+                contextVars.file,
+                {
+                    nodeId: contextVars.node.id,
+                    nodeApiUrl: contextVars.node.urls.api,
+                    materialized: contextVars.file.materialized || contextVars.file.materializedPath
+                }
+            )
+        };
+        refreshFileViewButtons(item);
+        setTimeout(function() {
+            processHash(item);
+        }, 0);
+    }
+    const toggleBar = $('#toggleBar').get(0);
+    observer.observe(toggleBar, {attributes: false, childList: true, subtree: false});
+}
+
+function wekoUploadAdd(file, item) {
+    console.log(logPrefix, 'Detected: uploadAdded', file);
+    uploadCount ++;
+}
+
+function wekoUploadSuccess(file, row) {
+    console.log(logPrefix, 'Detected: uploadSuccess', file);
+    uploadCount --;
+    if (!uploadReservedHandler) {
+        return;
+    }
+    if (uploadCount > 0) {
+        console.log(logPrefix, 'Reserved upload handler exists. waiting for ', uploadCount, ' files');
+        return;
+    }
+    console.log(logPrefix, 'Processing reserved upload handler...');
+    const f = uploadReservedHandler;
+    uploadReservedHandler = null;
+    setTimeout(function() {
+        // If uploadAdded is called immediately afterwards, then revert to the reserved state again.
+        if (uploadCount > 0) {
+            console.log(logPrefix, 'Reserved upload handler restored');
+            uploadReservedHandler = f;
+            return;
+        }
+        f();
+        console.log(logPrefix, 'Reserved upload handler processed');
+    }, 500);
 }
 
 Fangorn.config.weko = {
-    folderIcon: _fangornFolderIcons,
-    uploadSuccess: _uploadSuccess,
-    itemButtons: _wekoItemButtons,
-    resolveRows: _fangornColumns
+    folderIcon: wekoFolderIcons,
+    itemButtons: wekoItemButtons,
+    resolveRows: wekoColumns,
+    uploadAdd: wekoUploadAdd,
+    uploadSuccess: wekoUploadSuccess,
 };
+
+if ($('#fileViewPanelLeft').length > 0) {
+    // File View
+    initFileView();
+}
