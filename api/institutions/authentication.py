@@ -172,7 +172,8 @@ class InstitutionAuthentication(BaseAuthentication):
         aal = p_user.get('Shib-AuthnContext-Class')
 
         # @R2022-48 loa
-        mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + settings.OSF_MFA_URL
+        mfa_url = CAS_SERVER_URL + '/logout?service=' + OSF_MFA_URL
+        logger.info(mfa_url)
         loa_flag = True
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
