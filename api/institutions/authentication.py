@@ -25,8 +25,10 @@ from osf import features
 from osf.models import Institution, UserExtendedData, LoA
 from osf.exceptions import BlacklistedEmailError
 from website.mails import send_mail, WELCOME_OSF4I
-from website.settings import OSF_SUPPORT_EMAIL, DOMAIN, to_bool
+from website.settings import OSF_SUPPORT_EMAIL, DOMAIN, to_bool, CAS_SERVER_URL, OSF_MFA_URL
 from website.util.quota import update_default_storage
+
+from django.shortcuts import redirect
 
 NEW_USER_NO_NAME = 'New User (no name)'
 
@@ -170,12 +172,15 @@ class InstitutionAuthentication(BaseAuthentication):
         aal = p_user.get('Shib-AuthnContext-Class')
 
         # @R2022-48 loa
+        mfa_url = CAS_SERVER_URL + '/logout?service=' + OSF_MFA_URL
+        logger.info(mfa_url)
         loa_flag = True
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
             if loa.aal == 2:
                 if not re.search('https://www.gakunin.jp/profile/AAL2', aal):
                     loa_flag = False
+                    return redirect(mfa_url), None
             elif loa.aal == 1:
                 # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
                 if not aal:
