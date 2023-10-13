@@ -8,8 +8,6 @@ from jinja2 import Environment
 
 from osf.models.metaschema import RegistrationSchema
 
-from . import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +31,8 @@ def _generate_file_columns(index, download_file_name, download_file_type):
     columns.append((f'{base_item}.filename', f'{base_file}.表示名', '', 'Allow Multiple', download_file_name))
     if download_file_type is not None:
         columns.append((f'{base_item}.format', f'{base_file}.フォーマット', '', 'Allow Multiple', download_file_type))
+    # TBD サムネイル？
+    # TBD Content-Type調整？デフォルトストレージはContent-Typeを供給しないので application/octet-streamだったら拡張子から推定するとか
     return columns
 
 def _get_metadata_value(file_metadata_data, item, lang, index):
@@ -129,7 +129,8 @@ def _get_columns(file_metadata, weko_key_prefix, weko_props, weko_key_counts=Non
         value = _get_value(file_metadata, weko_props, commonvars=commonvars, schema=schema)
         return _to_columns(weko_key_prefix, value, weko_key_counts=weko_key_counts)
     columns = []
-    for key, items in weko_props.items():
+    for key in sorted(weko_props.keys()):
+        items = weko_props[key]
         if key.startswith('@'):
             continue
         if not isinstance(items, list):
@@ -172,9 +173,10 @@ def _find_schema_question(schema, qid):
     raise KeyError(f'Question {qid} not found')
 
 def get_available_schema_id(file_metadata):
+    from .models import RegistrationMetadataMapping
     available_schema_ids = [
-        RegistrationSchema.objects.get(name=name)._id
-        for name in settings.MAPPINGS.keys()
+        mapping.registration_schema_id
+        for mapping in RegistrationMetadataMapping.objects.all()
     ]
     items = [
         item
@@ -233,12 +235,22 @@ def _resolve_array_index(weko_key_counts, key):
 def _expand_listed_key(mappings):
     r = {}
     for k, v in mappings.items():
+        if k == '@metadata':
+            continue
         for e in k.split():
             r[e] = v
     return r
 
 def write_csv(f, target_index, download_file_names, schema_id, file_metadata, project_metadata):
-    header = ['#ItemType', 'デフォルトアイテムタイプ（フル）(15)', 'https://localhost:8443/items/jsonschema/15']
+    from .models import RegistrationMetadataMapping
+    schema = RegistrationSchema.objects.get(_id=schema_id)
+    mapping_def = RegistrationMetadataMapping.objects.get(
+        registration_schema_id=schema._id,
+    )
+    logger.debug(f'Mappings: {mapping_def.rules}')
+    mapping_metadata = mapping_def.rules['@metadata']
+    itemtype_metadata = mapping_metadata['itemtype']
+    header = ['#ItemType', itemtype_metadata['name'], itemtype_metadata['schema']]
 
     columns = [('.publish_status', '.PUBLISH_STATUS', '', 'Required', 'private')]
     columns.append(('.metadata.path[0]', '.IndexID[0]', '', 'Allow Multiple', target_index.identifier))
@@ -252,9 +264,7 @@ def write_csv(f, target_index, download_file_names, schema_id, file_metadata, pr
     file_metadata_item = file_metadata_items[0]
     file_metadata_data = file_metadata_item['data']
 
-    schema = RegistrationSchema.objects.get(_id=schema_id)
-    schema_name = schema.name
-    mappings = _expand_listed_key(settings.MAPPINGS[schema_name])
+    mappings = _expand_listed_key(mapping_def.rules)
 
     weko_key_counts = {}
     commonvars = _get_common_variables(file_metadata_data, schema)
@@ -262,7 +272,7 @@ def write_csv(f, target_index, download_file_names, schema_id, file_metadata, pr
     if project_metadata is not None:
         commonvars.update(_get_common_variables(project_metadata, schema, skip_empty=True))
         sources.append(('project', project_metadata))
-    for key in mappings.keys():
+    for key in sorted(mappings.keys()):
         for source_type, source in sources:
             commonvars['context'] = source_type
             if key not in mappings:
@@ -311,6 +321,7 @@ def write_csv(f, target_index, download_file_names, schema_id, file_metadata, pr
                 )
 
     columns += columns_default
+    logger.debug(f'Columns: {columns}')
 
     cf = csv.writer(f)
     cf.writerow(header)
