@@ -165,7 +165,7 @@ function MetadataButtons() {
       );
     }).fail(function(xhr, status, error) {
       self.loadingMetadatas[nodeId] = false;
-      if (error === 'BAD REQUEST') {
+      if (xhr.status === 400) {
         if (!self.contexts) {
           self.contexts = {};
         }
