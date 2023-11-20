@@ -33,6 +33,8 @@ from website.settings import (
     to_bool,
     CAS_SERVER_URL,
     OSF_MFA_URL,
+    OSF_IAL2_STR,
+    OSF_AAL2_STR,
 )
 from website.util.quota import update_default_storage
 
