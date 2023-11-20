@@ -38,8 +38,6 @@ from website.settings import (
 )
 from website.util.quota import update_default_storage
 
-from django.shortcuts import redirect
-
 NEW_USER_NO_NAME = "New User (no name)"
 
 
