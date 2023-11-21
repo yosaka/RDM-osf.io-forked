@@ -38,14 +38,14 @@ from website.settings import (
 )
 from website.util.quota import update_default_storage
 
-NEW_USER_NO_NAME = "New User (no name)"
+NEW_USER_NO_NAME = 'New User (no name)'
 
 
 def send_welcome(user, request):
     send_mail(
         to_addr=user.username,
         mail=WELCOME_OSF4I,
-        mimetype="html",
+        mimetype='html',
         user=user,
         domain=DOMAIN,
         osf_support_email=OSF_SUPPORT_EMAIL,
@@ -53,51 +53,51 @@ def send_welcome(user, request):
             request,
             features.STORAGE_I18N,
         ),
-        use_viewonlylinks=to_bool("USE_VIEWONLYLINKS", True),
+        use_viewonlylinks=to_bool('USE_VIEWONLYLINKS', True),
     )
 
 
 class InstitutionAuthentication(BaseAuthentication):
-    """A dedicated authentication class for view ``InstitutionAuth``.
+    '''A dedicated authentication class for view ``InstitutionAuth``.
 
     The ``InstitutionAuth`` view and the ``InstitutionAuthentication`` class are only and should
     only be used by OSF CAS for institution login. Changing this class and related tests may break
     the institution login feature. Please check with @longzeC / @mattF / @brianG before making any
     changes.
-    """
+    '''
 
-    media_type = "text/plain"
+    media_type = 'text/plain'
 
     def authenticate(self, request):
-        """
+        '''
         Handle CAS institution authentication request.
 
         The JWT `data` payload is expected in the following structure:
         {
-            "provider": {
-                "idp":  "",
-                "id":   "",
-                "user": {
-                    "username":     "",  # email or eppn
-                    "fullname":     "",  # displayName
-                    "familyName":   "",  # sn or surname
-                    "givenName":    "",
-                    "middleNames":  "",
-                    "jaDisplayName": "",
-                    "jaSurname":     "",  # jasn
-                    "jaGivenName":   "",
-                    "jaMiddleNames": "",
-                    "suffix":       "",
-                    "groups":       "",  # isMemberOf for mAP API v1
-                    "eptid":        "",  # persistent-id for mAP API v1
-                    "entitlement":  "",  # eduPersonEntitlement
-                    "email":        "",  # mail
-                    "organizationName": "",    # o
-                    "organizationalUnit": "",  # ou
-                    "jaOrganizationName": "",  # jao
-                    "jaOrganizationalUnitName": "",  # jaou
-                    "ial": "",  # eduPersonAssurance
-                    "aal": "",  # AuthnContextClass
+            'provider': {
+                'idp':  '',
+                'id':   '',
+                'user': {
+                    'username':     '',  # email or eppn
+                    'fullname':     '',  # displayName
+                    'familyName':   '',  # sn or surname
+                    'givenName':    '',
+                    'middleNames':  '',
+                    'jaDisplayName': '',
+                    'jaSurname':     '',  # jasn
+                    'jaGivenName':   '',
+                    'jaMiddleNames': '',
+                    'suffix':       '',
+                    'groups':       '',  # isMemberOf for mAP API v1
+                    'eptid':        '',  # persistent-id for mAP API v1
+                    'entitlement':  '',  # eduPersonEntitlement
+                    'email':        '',  # mail
+                    'organizationName': '',    # o
+                    'organizationalUnit': '',  # ou
+                    'jaOrganizationName': '',  # jao
+                    'jaOrganizationalUnitName': '',  # jaou
+                    'ial': '',  # eduPersonAssurance
+                    'aal': '',  # AuthnContextClass
                 }
             }
         }
@@ -105,36 +105,32 @@ class InstitutionAuthentication(BaseAuthentication):
         :param request: the POST request
         :return: user, None if authentication succeed
         :raises: AuthenticationFailed if authentication fails
-        """
+        '''
         # Verify / decrypt / decode the payload
         try:
             payload = jwt.decode(
                 jwe.decrypt(request.body, settings.JWE_SECRET),
                 settings.JWT_SECRET,
-                options={"verify_exp": False},
-                algorithm="HS256",
+                options={'verify_exp': False},
+                algorithm='HS256',
             )
         except (jwt.InvalidTokenError, TypeError, jwe.exceptions.MalformedData):
             raise AuthenticationFailed
 
         # Load institution and user data
         logger.info(payload)
-        data = json.loads(payload["data"])
-        provider = data["provider"]
-        institution = Institution.load(provider["id"])
+        data = json.loads(payload['data'])
+        provider = data['provider']
+        institution = Institution.load(provider['id'])
         if not institution:
-            raise AuthenticationFailed(
-                'Invalid institution id: "{}"'.format(provider["id"])
-            )
+            raise AuthenticationFailed('Invalid institution id: "{}"'.format(provider['id']))
 
         USE_EPPN = login_by_eppn()
 
-        logger.info(
-            "---InstitutionAuthentication.authenticate.user:{}".format(provider)
-        )
+        logger.info('---InstitutionAuthentication.authenticate.user:{}'.format(provider))
 
-        p_idp = provider["idp"]
-        p_user = provider["user"]
+        p_idp = provider['idp']
+        p_user = provider['user']
 
         def get_next(obj, *args):
             ret = None
@@ -147,51 +143,49 @@ class InstitutionAuthentication(BaseAuthentication):
             return ret
 
         # username
-        username = p_user.get("username")
+        username = p_user.get('username')
         # display name: 'displayName' is friendlyName
-        fullname = get_next(p_user, "displayName", "fullname")
+        fullname = get_next(p_user, 'displayName', 'fullname')
         # first name: 'givenName' is friendlyName
-        given_name = get_next(p_user, "givenName", "firstName")
+        given_name = get_next(p_user, 'givenName', 'firstName')
         # last name: 'sn' is friendlyName
-        family_name = get_next(p_user, "sn", "surname", "familyName", "lastName")
+        family_name = get_next(p_user, 'sn', 'surname', 'familyName', 'lastName')
         # middle names
-        middle_names = p_user.get("middleNames")
+        middle_names = p_user.get('middleNames')
         # suffix name
-        suffix = p_user.get("suffix")
+        suffix = p_user.get('suffix')
         # display name: 'jaDisplayName' is friendlyName
-        fullname_ja = get_next(p_user, "jaDisplayName", "jaFullname")
+        fullname_ja = get_next(p_user, 'jaDisplayName', 'jaFullname')
         # first name: 'jaGivenName' is friendlyName
-        given_name_ja = get_next(p_user, "jaGivenName", "jaFirstName")
+        given_name_ja = get_next(p_user, 'jaGivenName', 'jaFirstName')
         # last name: 'jasn' is friendlyName
-        family_name_ja = get_next(
-            p_user, "jasn", "jaSurname", "jaFamilyName", "jaLastName"
-        )
+        family_name_ja = get_next(p_user, 'jasn', 'jaSurname', 'jaFamilyName', 'jaLastName')
         # middle names
-        middle_names_ja = p_user.get("jaMiddleNames")
+        middle_names_ja = p_user.get('jaMiddleNames')
         # department
-        department = p_user.get("department")
+        department = p_user.get('department')
         # entitlement: 'eduPersonEntitlement' is friendlyName
-        entitlement = get_next(p_user, "eduPersonEntitlement", "entitlement")
+        entitlement = get_next(p_user, 'eduPersonEntitlement', 'entitlement')
         # email: 'mail' is friendlyName
-        mail = email = get_next(p_user, "mail", "email")
+        mail = email = get_next(p_user, 'mail', 'email')
         # organization: 'o' is friendlyName
-        organization_name = get_next(p_user, "o", "organizationName")
+        organization_name = get_next(p_user, 'o', 'organizationName')
         # affiliation: 'ou' is friendlyName
-        organizational_unit = get_next(p_user, "ou", "organizationalUnitName")
+        organizational_unit = get_next(p_user, 'ou', 'organizationalUnitName')
         # organization: 'jao' is friendlyName
-        organization_name_ja = get_next(p_user, "jao", "jaOrganizationName")
+        organization_name_ja = get_next(p_user, 'jao', 'jaOrganizationName')
         # affiliation: 'jaou' is friendlyName
-        organizational_unit_ja = get_next(p_user, "jaou", "jaOrganizationalUnitName")
+        organizational_unit_ja = get_next(p_user, 'jaou', 'jaOrganizationalUnitName')
         # @R2022-48 ial
-        ial = p_user.get("eduPersonAssurance")
+        ial = p_user.get('eduPersonAssurance')
         # @R2022-48 aal
-        aal = p_user.get("Shib-AuthnContext-Class")
+        aal = p_user.get('Shib-AuthnContext-Class')
 
         # @R2022-48 loa
-        mfa_url = CAS_SERVER_URL + "/logout?service=" + OSF_MFA_URL
+        mfa_url = CAS_SERVER_URL + '/logout?service=' + OSF_MFA_URL
         logger.info(mfa_url)
         loa_flag = True
-        message = "Institution login failed: Does not meet the required AAL and IAL."
+        message = 'Institution login failed: Does not meet the required AAL and IAL.'
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
             if loa.aal == 2:
@@ -205,16 +199,16 @@ class InstitutionAuthentication(BaseAuthentication):
             elif loa.aal == 1:
                 # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
                 if not aal:
-                    message = "Institution login failed: Does not meet the required AAL.<br />Please contact the IdP as the appropriate value may not have been sent out by the IdP."
+                    message = 'Institution login failed: Does not meet the required AAL.<br />Please contact the IdP as the appropriate value may not have been sent out by the IdP.'
                     loa_flag = False
             if loa.ial == 2:
                 if not re.search(OSF_IAL2_STR, ial):
-                    message = "Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution."
+                    message = 'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution.'
                     loa_flag = False
             elif loa.ial == 1:
                 # if not re.search('https://www.gakunin.jp/profile/IAL1', ial):
                 if not ial:
-                    message = "Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution."
+                    message = 'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution.'
                     loa_flag = False
         if not loa_flag:
             sentry.log_message(message)
@@ -222,18 +216,17 @@ class InstitutionAuthentication(BaseAuthentication):
 
         # Use given name and family name to build full name if it is not provided
         if given_name and family_name and not fullname:
-            fullname = given_name + " " + family_name
+            fullname = given_name + ' ' + family_name
         if given_name_ja and family_name_ja and not fullname_ja:
-            fullname_ja = given_name_ja + " " + family_name_ja
+            fullname_ja = given_name_ja + ' ' + family_name_ja
 
         if USE_EPPN and not fullname:
             fullname = NEW_USER_NO_NAME
 
         # Non-empty full name is required. Fail the auth and inform sentry if not provided.
         if not fullname:
-            message = (
-                "Institution login failed: fullname required for "
-                'user "{}" from institution "{}"'.format(username, provider["id"])
+            message = 'Institution login failed: fullname required for ' 'user "{}" from institution "{}"'.format(
+                username, provider['id']
             )
             sentry.log_message(message)
             raise AuthenticationFailed(message)
@@ -245,7 +238,7 @@ class InstitutionAuthentication(BaseAuthentication):
         if USE_EPPN:
             eppn = username
             if not eppn:
-                message = "Institution login failed: eppn required"
+                message = 'Institution login failed: eppn required'
                 sentry.log_message(message)
                 raise AuthenticationFailed(message)
 
@@ -256,11 +249,9 @@ class InstitutionAuthentication(BaseAuthentication):
             else:  # new user
                 if email:
                     existing_user = get_user(email=email, log=False)
-                    if (
-                        existing_user and existing_user.eppn != eppn
-                    ):  # suppose race-condition
+                    if existing_user and existing_user.eppn != eppn:  # suppose race-condition
                         email = None  # require other email address
-                tmp_eppn = ("tmp_eppn_" + eppn).lower()
+                tmp_eppn = ('tmp_eppn_' + eppn).lower()
                 if email:
                     username_tmp = email
                 else:
@@ -290,7 +281,7 @@ class InstitutionAuthentication(BaseAuthentication):
         # user is found, it is also possible that the user is inactive (e.g. unclaimed, disabled,
         # unconfirmed, etc.).
 
-        # Existing but inactive users need to be either "activated" or failed the auth
+        # Existing but inactive users need to be either 'activated' or failed the auth
         activation_required = False
         new_password_required = False
         if not created:
@@ -304,9 +295,7 @@ class InstitutionAuthentication(BaseAuthentication):
                 # Unclaimed users have an unusable password when being added as an unregistered
                 # contributor. Thus a random usable password must be assigned during activation.
                 new_password_required = True
-                logger.info(
-                    'Institution SSO: unclaimed contributor "{}"'.format(username)
-                )
+                logger.info('Institution SSO: unclaimed contributor "{}"'.format(username))
             except exceptions.UnconfirmedAccountError:
                 if user.has_usable_password():
                     # Unconfirmed user from default username / password signup
@@ -316,36 +305,28 @@ class InstitutionAuthentication(BaseAuthentication):
                     # sign-up. However, it must be overwritten by a new random one so the creator
                     # (if he is not the real person) can not access the account after activation.
                     new_password_required = True
-                    logger.info(
-                        'Institution SSO: unconfirmed user "{}"'.format(username)
-                    )
+                    logger.info('Institution SSO: unconfirmed user "{}"'.format(username))
                 else:
                     # Login take-over has not been implemented for unconfirmed user created via
                     # external IdP login (ORCiD).
                     message = (
-                        "Institution SSO is not eligible for an unconfirmed account "
-                        'created via external IdP login: username = "{}"'.format(
-                            username
-                        )
+                        'Institution SSO is not eligible for an unconfirmed account '
+                        'created via external IdP login: username = "{}"'.format(username)
                     )
                     sentry.log_message(message)
                     logger.error(message)
                     return None, None
             except exceptions.DeactivatedAccountError:
                 # Deactivated user: login is not allowed for deactivated users
-                message = (
-                    "Institution SSO is not eligible for a deactivated account: "
-                    'username = "{}"'.format(username)
+                message = 'Institution SSO is not eligible for a deactivated account: ' 'username = "{}"'.format(
+                    username
                 )
                 sentry.log_message(message)
                 logger.error(message)
                 return None, None
             except exceptions.MergedAccountError:
                 # Merged user: this shouldn't happen since merged users do not have an email
-                message = (
-                    "Institution SSO is not eligible for a merged account: "
-                    'username = "{}"'.format(username)
-                )
+                message = 'Institution SSO is not eligible for a merged account: ' 'username = "{}"'.format(username)
                 sentry.log_message(message)
                 logger.error(message)
                 return None, None
@@ -354,7 +335,7 @@ class InstitutionAuthentication(BaseAuthentication):
                 # temporary state. Such state requires more updates before the user can be saved
                 # to the database. (e.g. `get_or_create_user()` creates a temporary-state user.)
                 message = (
-                    "Institution SSO is not eligible for an inactive account with "
+                    'Institution SSO is not eligible for an inactive account with '
                     'an unknown or invalid status: username = "{}"'.format(username)
                 )
                 sentry.log_message(message)
@@ -399,7 +380,7 @@ class InstitutionAuthentication(BaseAuthentication):
 
             user.update_date_last_login()
 
-            ## Relying on front-end validation until `accepted_tos` is added to the JWT payload
+            # Relying on front-end validation until `accepted_tos` is added to the JWT payload
             # user.accepted_terms_of_service = timezone.now()
             if settings.USER_TIMEZONE:
                 user.timezone = settings.USER_TIMEZONE
@@ -408,7 +389,7 @@ class InstitutionAuthentication(BaseAuthentication):
                 user.locale = settings.USER_LOCALE
 
             if entitlement:
-                if "GakuninRDMAdmin" in entitlement:
+                if 'GakuninRDMAdmin' in entitlement:
                     user.is_staff = True
 
             if USE_EPPN:
@@ -425,29 +406,29 @@ class InstitutionAuthentication(BaseAuthentication):
                     #   organization_name (o) : Institution / Employer
                     #   organizational_unit (ou) : Department / Institute
                     job = {
-                        "title": "",
-                        "institution": organization_name,  # required
-                        "institution_ja": "",  # required
-                        "department": "",
-                        "department_ja": "",
-                        "location": "",
-                        "startMonth": "",
-                        "startYear": "",
-                        "endMonth": "",
-                        "endYear": "",
-                        "ongoing": False,
+                        'title': '',
+                        'institution': organization_name,  # required
+                        'institution_ja': '',  # required
+                        'department': '',
+                        'department_ja': '',
+                        'location': '',
+                        'startMonth': '',
+                        'startYear': '',
+                        'endMonth': '',
+                        'endYear': '',
+                        'ongoing': False,
                     }
                     if organization_name_ja:
-                        job["institution_ja"] = organization_name_ja
+                        job['institution_ja'] = organization_name_ja
                     if organizational_unit:
-                        job["department"] = organizational_unit
+                        job['department'] = organizational_unit
                     if organizational_unit_ja:
-                        job["department_ja"] = organizational_unit_ja
+                        job['department_ja'] = organizational_unit_ja
                     user.jobs.append(job)
             else:
                 user.eppn = None
                 user.have_email = True
-                ### username is email address
+                # username is email address
 
             # Register and save user
             password = str(uuid.uuid4()) if new_password_required else None
@@ -457,23 +438,23 @@ class InstitutionAuthentication(BaseAuthentication):
             # send confirmation email
             if user.have_email:
                 send_welcome(user, request)
-            ### the user is not available when have_email is False.
+            # the user is not available when have_email is False.
 
         ext, created = UserExtendedData.objects.get_or_create(user=user)
         # update every login.
         ext.set_idp_attr(
             {
-                "idp": p_idp,
-                "eppn": eppn,
-                "username": username,
-                "fullname": fullname,
-                "fullname_ja": fullname_ja,
-                "entitlement": entitlement,
-                "email": mail,
-                "organization_name": organization_name,
-                "organizational_unit": organizational_unit,
-                "organization_name_ja": organization_name_ja,
-                "organizational_unit_ja": organizational_unit_ja,
+                'idp': p_idp,
+                'eppn': eppn,
+                'username': username,
+                'fullname': fullname,
+                'fullname_ja': fullname_ja,
+                'entitlement': entitlement,
+                'email': mail,
+                'organization_name': organization_name,
+                'organizational_unit': organizational_unit,
+                'organization_name_ja': organization_name_ja,
+                'organizational_unit_ja': organizational_unit_ja,
             },
         )
 
@@ -499,13 +480,13 @@ def login_by_eppn():
 
 
 def init_cloud_gateway_groups(user, provider):
-    if not hasattr(settings, "CLOUD_GATEWAY_ISMEMBEROF_PREFIX"):
+    if not hasattr(settings, 'CLOUD_GATEWAY_ISMEMBEROF_PREFIX'):
         return
     prefix = settings.CLOUD_GATEWAY_ISMEMBEROF_PREFIX
     if not prefix:
         return
 
-    eptid = provider["user"].get("eptid")
+    eptid = provider['user'].get('eptid')
     if not eptid:
         return  # Cloud Gateway may not be alive.
 
@@ -516,15 +497,15 @@ def init_cloud_gateway_groups(user, provider):
     # debug = True
 
     if debug:
-        groups_str = ""
-        if user.eppn == "test002@nii.ac.jp":
-            groups_str = "https://sptest.cg.gakunin.jp/gr/group1;https://sptest.cg.gakunin.jp/gr/group1/admin;https://sptest.cg.gakunin.jp/gr/group2;https://sptest.cg.gakunin.jp/gr/group2/admin;https://sptest.cg.gakunin.jp/gr/group3"
-        elif user.eppn == "test003@nii.ac.jp":
-            groups_str = "https://sptest.cg.gakunin.jp/gr/group1;https://sptest.cg.gakunin.jp/gr/group1/admin;https://sptest.cg.gakunin.jp/gr/group2"
+        groups_str = ''
+        if user.eppn == 'test002@nii.ac.jp':
+            groups_str = 'https://sptest.cg.gakunin.jp/gr/group1;https://sptest.cg.gakunin.jp/gr/group1/admin;https://sptest.cg.gakunin.jp/gr/group2;https://sptest.cg.gakunin.jp/gr/group2/admin;https://sptest.cg.gakunin.jp/gr/group3'
+        elif user.eppn == 'test003@nii.ac.jp':
+            groups_str = 'https://sptest.cg.gakunin.jp/gr/group1;https://sptest.cg.gakunin.jp/gr/group1/admin;https://sptest.cg.gakunin.jp/gr/group2'
     else:
-        groups_str = provider["user"].get("groups")
+        groups_str = provider['user'].get('groups')
         if groups_str is None:
-            groups_str = ""
+            groups_str = ''
 
     # clear groups
     user.cggroups.clear()
@@ -535,12 +516,12 @@ def init_cloud_gateway_groups(user, provider):
     # set groups
     import re
 
-    patt_prefix = re.compile("^" + prefix)
-    patt_admin = re.compile("(.+)/admin$")
-    for group in groups_str.split(";"):
+    patt_prefix = re.compile('^' + prefix)
+    patt_admin = re.compile('(.+)/admin$')
+    for group in groups_str.split(';'):
         if patt_prefix.match(group):
-            groupname = patt_prefix.sub("", group)
-            if groupname is None or groupname == "":
+            groupname = patt_prefix.sub('', group)
+            if groupname is None or groupname == '':
                 continue
             m = patt_admin.search(groupname)
             if m:  # is admin
