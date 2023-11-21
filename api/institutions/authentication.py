@@ -226,7 +226,8 @@ class InstitutionAuthentication(BaseAuthentication):
         # Non-empty full name is required. Fail the auth and inform sentry if not provided.
         if not fullname:
             message = 'Institution login failed: fullname required for ' 'user "{}" from institution "{}"'.format(
-                username, provider['id']
+                username,
+                provider['id'],
             )
             sentry.log_message(message)
             raise AuthenticationFailed(message)
@@ -319,7 +320,7 @@ class InstitutionAuthentication(BaseAuthentication):
             except exceptions.DeactivatedAccountError:
                 # Deactivated user: login is not allowed for deactivated users
                 message = 'Institution SSO is not eligible for a deactivated account: ' 'username = "{}"'.format(
-                    username
+                    username,
                 )
                 sentry.log_message(message)
                 logger.error(message)
