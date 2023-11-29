@@ -196,7 +196,7 @@ class InstitutionAuthentication(BaseAuthentication):
             + OSF_SERVICE_URL
             + '/'
         )
-        mfa_url = CAS_SERVER_URL + '/logout?mfa_url=' + urllib.parse.quote(mfa_url_q, safe='')
+        mfa_url = CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
         loa_flag = True
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
