@@ -1,15 +1,13 @@
 import json
 import uuid
 import logging
-
-logger = logging.getLogger(__name__)
-
 import jwe
 import jwt
 import waffle
 
 # @R2022-48 loa
 import re
+import urllib.parse
 
 # from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
@@ -31,12 +29,15 @@ from website.settings import (
     OSF_SUPPORT_EMAIL,
     DOMAIN,
     to_bool,
+    OSF_SERVICE_URL,
     CAS_SERVER_URL,
     OSF_MFA_URL,
     OSF_IAL2_STR,
     OSF_AAL2_STR,
 )
 from website.util.quota import update_default_storage
+
+logger = logging.getLogger(__name__)
 
 NEW_USER_NO_NAME = 'New User (no name)'
 
@@ -67,6 +68,7 @@ class InstitutionAuthentication(BaseAuthentication):
     '''
 
     media_type = 'text/plain'
+    context = {'mfa_url': ''}
 
     def authenticate(self, request):
         '''
@@ -181,36 +183,51 @@ class InstitutionAuthentication(BaseAuthentication):
         # @R2022-48 aal
         aal = p_user.get('Shib-AuthnContext-Class')
 
-        # @R2022-48 loa
-        mfa_url = CAS_SERVER_URL + '/logout?service=' + OSF_MFA_URL
-        logger.info(mfa_url)
+        # @R2022-48 loa + R-2023-55
+        message = ''
+        self.context['mfa_url'] = ''
+        mfa_url_q = (
+            OSF_MFA_URL
+            + '?entityID='
+            + provider['idp']
+            + '&target='
+            + CAS_SERVER_URL
+            + '/login?service='
+            + OSF_SERVICE_URL
+            + '/'
+        )
+        mfa_url = CAS_SERVER_URL + '/logout?mfa_url=' + urllib.parse.quote(mfa_url_q, safe='')
         loa_flag = True
-        message = 'Institution login failed: Does not meet the required AAL and IAL.'
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
             if loa.aal == 2:
                 if not re.search(OSF_AAL2_STR, aal):
-                    message = (
-                        'Institution login failed: Does not meet the required AAL.<br /><a href="'
-                        + mfa_url
-                        + '">Set MFA and update AAL.</a>'
-                    )
-                    loa_flag = False
+                    self.context['mfa_url'] = mfa_url
             elif loa.aal == 1:
                 # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
                 if not aal:
-                    message = 'Institution login failed: Does not meet the required AAL.<br />Please contact the IdP as the appropriate value may not have been sent out by the IdP.'
+                    message = (
+                        'Institution login failed: Does not meet the required AAL.<br />Please contact the IdP as the'
+                        ' appropriate value may not have been sent out by the IdP.'
+                    )
                     loa_flag = False
             if loa.ial == 2:
                 if not re.search(OSF_IAL2_STR, ial):
-                    message = 'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution.'
+                    message = (
+                        'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your'
+                        ' institution.'
+                    )
                     loa_flag = False
             elif loa.ial == 1:
                 # if not re.search('https://www.gakunin.jp/profile/IAL1', ial):
                 if not ial:
-                    message = 'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your institution.'
+                    message = (
+                        'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your'
+                        ' institution.'
+                    )
                     loa_flag = False
         if not loa_flag:
+            message = 'Institution login failed: Does not meet the required AAL and IAL.'
             sentry.log_message(message)
             raise ValidationError(message)
 
@@ -225,7 +242,7 @@ class InstitutionAuthentication(BaseAuthentication):
 
         # Non-empty full name is required. Fail the auth and inform sentry if not provided.
         if not fullname:
-            message = 'Institution login failed: fullname required for ' 'user "{}" from institution "{}"'.format(
+            message = 'Institution login failed: fullname required for user "{}" from institution "{}"'.format(
                 username,
                 provider['id'],
             )
@@ -319,7 +336,7 @@ class InstitutionAuthentication(BaseAuthentication):
                     return None, None
             except exceptions.DeactivatedAccountError:
                 # Deactivated user: login is not allowed for deactivated users
-                message = 'Institution SSO is not eligible for a deactivated account: ' 'username = "{}"'.format(
+                message = 'Institution SSO is not eligible for a deactivated account: username = "{}"'.format(
                     username,
                 )
                 sentry.log_message(message)
@@ -327,7 +344,7 @@ class InstitutionAuthentication(BaseAuthentication):
                 return None, None
             except exceptions.MergedAccountError:
                 # Merged user: this shouldn't happen since merged users do not have an email
-                message = 'Institution SSO is not eligible for a merged account: ' 'username = "{}"'.format(username)
+                message = 'Institution SSO is not eligible for a merged account: username = "{}"'.format(username)
                 sentry.log_message(message)
                 logger.error(message)
                 return None, None
@@ -349,13 +366,16 @@ class InstitutionAuthentication(BaseAuthentication):
         if department and user.department != department:
             user.department = department
             user.save()
-        # @R2022-48 also.
-        if ial and user.ial != ial:
+        # @R-2023-55.
+        if not re.search(OSF_AAL2_STR, aal) and re.search(OSF_AAL2_STR, user.aal):
+            self.context['mfa_url'] = mfa_url
+        elif ial and user.ial != ial:
             user.ial = ial
             user.save()
         if aal and user.aal != aal:
             user.aal = aal
             user.save()
+        logger.info('MFA URL "{}"'.format(self.context['mfa_url']))
 
         # Both created and activated accounts need to be updated and registered
         if created or activation_required:
