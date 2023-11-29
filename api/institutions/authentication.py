@@ -201,7 +201,7 @@ class InstitutionAuthentication(BaseAuthentication):
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
             if loa.aal == 2:
-                if not re.search(OSF_AAL2_STR, aal):
+                if not re.search(OSF_AAL2_STR, str(aal)):
                     self.context['mfa_url'] = mfa_url
             elif loa.aal == 1:
                 # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
@@ -212,7 +212,7 @@ class InstitutionAuthentication(BaseAuthentication):
                     )
                     loa_flag = False
             if loa.ial == 2:
-                if not re.search(OSF_IAL2_STR, ial):
+                if not re.search(OSF_IAL2_STR, str(ial)):
                     message = (
                         'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your'
                         ' institution.'
@@ -367,7 +367,7 @@ class InstitutionAuthentication(BaseAuthentication):
             user.department = department
             user.save()
         # @R-2023-55.
-        if not re.search(OSF_AAL2_STR, aal) and re.search(OSF_AAL2_STR, user.aal):
+        if not re.search(OSF_AAL2_STR, str(aal)) and re.search(OSF_AAL2_STR, str(user.aal)):
             self.context['mfa_url'] = mfa_url
         elif ial and user.ial != ial:
             user.ial = ial
