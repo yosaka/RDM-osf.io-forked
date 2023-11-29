@@ -13,6 +13,7 @@ from website.util import quota
 
 # @R2022-48
 import re
+import urllib.parse
 
 
 def get_profile_image_url(user, size=settings.PROFILE_IMAGE_MEDIUM):
@@ -35,16 +36,28 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
     # @R2022-48
     if not user.aal:
         _aal = 'NULL'
-    elif re.search(settings.OSF_AAL2_STR, user.aal):
+    elif re.search(settings.OSF_AAL2_STR, str(user.aal)):
         _aal = 'AAL2'
     else:
         _aal = 'AAL1'
     if not user.ial:
         _ial = 'NULL'
-    elif re.search(settings.OSF_IAL2_STR, user.ial):
+    elif re.search(settings.OSF_IAL2_STR, str(user.ial)):
         _ial = 'IAL2'
     else:
         _ial = 'IAL1'
+    # @R-2023-55
+    mfa_url_q = (
+        settings.OSF_MFA_URL
+        + '?entityID='
+        + idp_attrs.get('idp')
+        + '&target='
+        + settings.CAS_SERVER_URL
+        + '/login?service='
+        + settings.OSF_SERVICE_URL
+        + '/'
+    )
+    mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
     ret = {
         'id': str(user._id),
         'primary_key': user.id,
@@ -58,6 +71,7 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         'aal': user.aal,  # @R2022-48
         '_ial': _ial,  # @R2022-48
         '_aal': _aal,  # @R2022-48
+        'mfa_url': mfa_url,  # @R-2023-55
         'have_email': user.have_email,
         'idp_email': idp_attrs.get('email'),
     }
