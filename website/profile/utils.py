@@ -55,7 +55,6 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         + settings.CAS_SERVER_URL
         + '/login?service='
         + settings.OSF_SERVICE_URL
-        + '/'
     )
     mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
     ret = {
