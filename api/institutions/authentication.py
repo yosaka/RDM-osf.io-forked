@@ -186,7 +186,7 @@ class InstitutionAuthentication(BaseAuthentication):
         # @R2022-48 loa + R-2023-55
         message = ''
         self.context['mfa_url'] = ''
-        mfa_url_q = (
+        _mfa_url_q = (
             OSF_MFA_URL
             + '?entityID='
             + provider['idp']
@@ -195,6 +195,7 @@ class InstitutionAuthentication(BaseAuthentication):
             + '/login?service='
             + OSF_SERVICE_URL
         )
+        mfa_url_q = os.path.join(_mfa_url_q, '/')
         mfa_url = CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
         loa_flag = True
         loa = LoA.objects.get_or_none(institution_id=institution.id)
