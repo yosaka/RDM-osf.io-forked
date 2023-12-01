@@ -47,7 +47,6 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
     else:
         _ial = 'IAL1'
     # @R-2023-55
-    slash = '/'
     mfa_url_q = (
         settings.OSF_MFA_URL
         + '?entityID='
@@ -56,7 +55,7 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         + settings.CAS_SERVER_URL
         + '/login?service='
         + settings.OSF_SERVICE_URL
-        + str(slash)
+        + '/'
     )
     mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
     ret = {
