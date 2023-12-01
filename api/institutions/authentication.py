@@ -6,7 +6,6 @@ import jwt
 import waffle
 
 # @R2022-48 loa
-import os
 import re
 import urllib.parse
 

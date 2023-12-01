@@ -12,7 +12,6 @@ from api.waffle.utils import storage_i18n_flag_active
 from website.util import quota
 
 # @R2022-48
-import os
 import re
 import urllib.parse
 
