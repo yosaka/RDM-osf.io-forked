@@ -186,17 +186,20 @@ class InstitutionAuthentication(BaseAuthentication):
         # @R2022-48 loa + R-2023-55
         message = ''
         self.context['mfa_url'] = ''
-        mfa_url_q = (
-            OSF_MFA_URL
-            + '?entityID='
-            + provider['idp']
-            + '&target='
-            + CAS_SERVER_URL
-            + '/login?service='
-            + OSF_SERVICE_URL
-            + '/'
-        )
-        mfa_url = CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
+        mfa_url = ''
+        entity_id = provider['idp']
+        if entity_id is not None:
+            mfa_url_q = (
+                OSF_MFA_URL
+                + '?entityID='
+                + entity_id
+                + '&target='
+                + CAS_SERVER_URL
+                + '/login?service='
+                + OSF_SERVICE_URL
+                + '/'
+            )
+            mfa_url = CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
         loa_flag = True
         loa = LoA.objects.get_or_none(institution_id=institution.id)
         if loa:
