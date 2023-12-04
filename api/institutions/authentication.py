@@ -187,12 +187,11 @@ class InstitutionAuthentication(BaseAuthentication):
         message = ''
         self.context['mfa_url'] = ''
         mfa_url = ''
-        entity_id = provider['idp']
-        if entity_id is not None:
+        if type(p_idp) is str:
             mfa_url_q = (
                 OSF_MFA_URL
                 + '?entityID='
-                + entity_id
+                + p_idp
                 + '&target='
                 + CAS_SERVER_URL
                 + '/login?service='
