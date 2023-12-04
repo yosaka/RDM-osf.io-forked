@@ -33,6 +33,7 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         user = contrib.user
     fullname = user.display_full_name(node=node)
     idp_attrs = user.get_idp_attr()
+
     # @R2022-48
     if not user.aal:
         _aal = 'NULL'
@@ -46,18 +47,23 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         _ial = 'IAL2'
     else:
         _ial = 'IAL1'
+
     # @R-2023-55
-    mfa_url_q = (
-        settings.OSF_MFA_URL
-        + '?entityID='
-        + idp_attrs.get('idp')
-        + '&target='
-        + settings.CAS_SERVER_URL
-        + '/login?service='
-        + settings.OSF_SERVICE_URL
-        + '/'
-    )
-    mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
+    mfa_url = ''
+    entity_id = idp_attrs.get('idp')
+    if entity_id is not None:
+        mfa_url_q = (
+            settings.OSF_MFA_URL
+            + '?entityID='
+            + entity_id
+            + '&target='
+            + settings.CAS_SERVER_URL
+            + '/login?service='
+            + settings.OSF_SERVICE_URL
+            + '/'
+        )
+        mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
+
     ret = {
         'id': str(user._id),
         'primary_key': user.id,
