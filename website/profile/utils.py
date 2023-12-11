@@ -3,7 +3,7 @@ from framework import auth
 
 from api.base import settings as api_settings
 from website import settings
-from osf.models import Contributor, UserQuota
+from osf.models import Contributor, UserQuota, LoA
 from addons.osfstorage.models import Region
 from website.filters import profile_image_url
 from osf.utils.permissions import READ
@@ -64,6 +64,12 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         )
         mfa_url = settings.CAS_SERVER_URL + '/logout?service=' + urllib.parse.quote(mfa_url_q, safe='')
 
+    loa = LoA.objects.get_or_none(institution_id=idp_attrs.get('id'))
+    if loa is not None:
+        is_mfa = loa.is_mfa
+    else:
+        is_mfa = False
+
     ret = {
         'id': str(user._id),
         'primary_key': user.id,
@@ -78,6 +84,7 @@ def serialize_user(user, node=None, admin=False, full=False, is_profile=False, i
         '_ial': _ial,  # @R2022-48
         '_aal': _aal,  # @R2022-48
         'mfa_url': mfa_url,  # @R-2023-55
+        'is_mfa': is_mfa,  # @R-2023-55
         'have_email': user.have_email,
         'idp_email': idp_attrs.get('email'),
     }
