@@ -369,9 +369,10 @@ class InstitutionAuthentication(BaseAuthentication):
             user.department = department
             user.save()
         # @R-2023-55.
-        if not re.search(OSF_AAL2_STR, str(aal)) and re.search(OSF_AAL2_STR, str(user.aal)):
-            self.context['mfa_url'] = mfa_url
-        elif ial and user.ial != ial:
+        # if not re.search(OSF_AAL2_STR, str(aal)) and re.search(OSF_AAL2_STR, str(user.aal)):
+        #    self.context['mfa_url'] = mfa_url
+        # elif ial and user.ial != ial:
+        if ial and user.ial != ial:
             user.ial = ial
             user.save()
         if aal and user.aal != aal:
