@@ -1,6 +1,5 @@
 from framework.routing import Rule, json_renderer
 from website.routes import OsfWebRenderer
-from . import SHORT_NAME
 from . import views
 
 TEMPLATE_DIR = './addons/onlyoffice/templates'

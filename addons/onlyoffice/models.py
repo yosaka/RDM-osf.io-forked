@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import logging
-import json
 
 from addons.base.models import BaseNodeSettings
 from django.db import models
