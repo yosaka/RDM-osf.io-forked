@@ -66,7 +66,7 @@ def parse_file_info(file_id_ver):
 
 def _ext_to_app_name_onlyoffice(ext):
     ext_app = {
-        'txt':  'text/plain',
+        'txt': 'text/plain',
         'docx': 'Word',
         'xlsx': 'Excel',
         'pptx': 'PowerPoint'

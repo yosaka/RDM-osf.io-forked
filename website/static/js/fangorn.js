@@ -2702,25 +2702,25 @@ var FGToolbar = {
                         // ]
                         [
                             m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'txt') },
+                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'txt'); },
                                 //icon: 'fa fa-plus',
                                 icon: 'file-extension _txt',
                                 className: 'text-success'
                             }),
                             m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'docx') },
+                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'docx'); },
                                 //icon: 'fa fa-plus',
                                 icon: 'file-extension _docx',
                                 className: 'text-success'
                             }),
                             m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'xlsx') },
+                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'xlsx'); },
                                 //icon: 'fa fa-plus',
                                 icon: 'file-extension _xlsx',
                                 className: 'text-success'
                             }),
                             m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'pptx') },
+                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'pptx'); },
                                 //icon: 'fa fa-plus',
                                 icon: 'file-extension _pub',
                                 className: 'text-success'

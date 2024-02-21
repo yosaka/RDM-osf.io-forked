@@ -1,25 +1,15 @@
 # -*- coding: utf-8 -*-
-from rest_framework import status as http_status
 from flask import request, Response
 import logging
 
 import requests
 import os
 import time
-from osf.models import BaseFileNode, OSFUser
-from lxml import etree
+from osf.models import BaseFileNode
 
-from . import SHORT_NAME
 from . import util as onlyoffice_util
 from . import settings
 from website import settings as websettings
-from framework.exceptions import HTTPError
-from website.project.decorators import (
-    must_be_contributor_or_public,
-    must_have_addon,
-    must_be_valid_project,
-    must_have_permission,
-)
 
 logger = logging.getLogger(__name__)
 
