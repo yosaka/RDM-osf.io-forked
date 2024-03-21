@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import timedelta
+from datetime import timedelta, datetime
 import logging
 import re
 
@@ -15,7 +15,6 @@ from framework.auth.decorators import Auth
 
 from osf.models.base import BaseModel
 from osf.models.files import File, Folder, BaseFileNode
-from osf.models.metaschema import RegistrationSchema
 from osf.models.nodelog import NodeLog
 from osf.utils.fields import NonNaiveDateTimeField
 from osf.utils.datetime_aware_jsonfield import DateTimeAwareJSONField
@@ -102,7 +101,10 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         token = provider.fetch_access_token()
         return Client(provider.sword_url, token=token)
 
-    def set_folder(self, index, auth=None):
+    def set_folder(self, index_id, auth=None):
+        c = self.create_client()
+        index = c.get_index_by_id(index_id)
+
         self.index_id = index.identifier
         self.index_title = index.title
 
@@ -118,10 +120,12 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
                 },
                 auth=auth,
             )
+        return index
 
     def set_publish_task_id(self, path, task_id):
         q = self.publish_task.filter(path=path).order_by('-updated')
         if not q.exists():
+            self._clean_expired_publish_tasks()
             PublishTask.objects.create(
                 project=self,
                 path=path,
@@ -159,14 +163,18 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         # Log can't be added without auth
         if add_log and auth:
             node = self.owner
-            self.owner.add_log(
-                action='weko_node_deauthorized',
-                params={
-                    'project': node.parent_id,
-                    'node': node._id,
-                },
-                auth=auth,
-            )
+            try:
+                self.owner.add_log(
+                    action='weko_node_deauthorized',
+                    params={
+                        'project': node.parent_id,
+                        'node': node._id,
+                    },
+                    auth=auth,
+                )
+            except Exception as e:
+                logger.exception('Error when deauthorizing node {0} for user {1}'.format(node._id, self.owner._id))
+                raise e
 
     def serialize_waterbutler_credentials(self):
         if not self.has_auth:
@@ -249,16 +257,6 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
         return self._validate_index_id(index, index_id)
 
     def get_metadata_repository(self):
-        c = self.create_client()
-        try:
-            index = c.get_index_by_id(self.index_id)
-        except ValueError:
-            logger.warn(f'WEKO3 Index is not found. Ignored: {self.index_id}')
-            return []
-        schema_id = RegistrationSchema.objects \
-            .filter(name=settings.DEFAULT_REGISTRATION_SCHEMA_NAME) \
-            .order_by('-schema_version') \
-            .first()._id
         return {
             'metadata': {
                 'provider': SHORT_NAME,
@@ -269,8 +267,16 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
                     'provider': False,
                 },
             },
-            'registries': self._as_destinations(schema_id, index, ''),
+            'registries': [],
         }
+
+    def get_metadata_destinations(self, schemas):
+        r = []
+        client = self.create_client()
+        index = client.get_index_by_id(self.index_id)
+        for schema in schemas:
+            r += self._as_destinations(schema._id, index, '')
+        return r
 
     def get_default_provider(self):
         addon = self.owner.get_addon('osfstorage')
@@ -296,18 +302,34 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
 
     def _as_destinations(self, schema_id, index, parent):
         url = self.owner.api_url_for(
-            'weko_publish_file',
+            'weko_publish_registration',
             index_id=index.identifier,
-            mnode='<mnode>',
-            filepath='<filepath>'
+            registration_id='<reg>'
         )
-        url = url[:url.index('/%3Cmnode%3E/')]
+        logger.info(f'URL: {url}')
+        url = url[:url.index('/%3Creg%3E')]
         r = [
             {
-                'id': 'weko-' + index.identifier,
-                'name': f'{parent}{index.title} ({FULL_NAME})',
+                'id': 'weko-' + schema_id + '-' + index.identifier,
+                'name': f'{FULL_NAME} ({parent}{index.title})',
                 'url': url,
-                'schema': schema_id,
+                'schema_id': schema_id,
+                'acceptable': ['registration'],
+            },
+        ]
+        url = self.owner.api_url_for(
+            'weko_publish_draft_registration',
+            index_id=index.identifier,
+            draft_registration_id='<reg>'
+        )
+        url = url[:url.index('/%3Creg%3E')]
+        r += [
+            {
+                'id': 'weko-' + schema_id + '-' + index.identifier + '-draft',
+                'name': f'{FULL_NAME} ({parent}{index.title})',
+                'url': url,
+                'schema_id': schema_id,
+                'acceptable': ['draft_registration'],
             },
         ]
         for child in index.children:
@@ -343,6 +365,12 @@ class NodeSettings(BaseOAuthNodeSettings, BaseStorageAddon):
             return None
         # NOOP
         return None
+
+    def _clean_expired_publish_tasks(self):
+        q = self.publish_task.filter(
+            updated__lt=datetime.now() - timedelta(seconds=settings.PUBLISH_TASK_EXPIRATION),
+        )
+        q.delete()
 
 
 class RegistrationMetadataMapping(BaseModel):

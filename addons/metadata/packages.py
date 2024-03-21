@@ -24,7 +24,7 @@ from api.nodes.serializers import NodeSerializer
 from api.base.utils import waterbutler_api_url_for
 from framework.auth import Auth
 from framework.celery_tasks import app as celery_app
-from framework.exceptions import HTTPError
+from framework.exceptions import HTTPError, PermissionsError
 from osf.models import Guid, OSFUser, AbstractNode, Comment, BaseFileNode, DraftRegistration, Registration
 from website.util import waterbutler
 from website import settings as website_settings
@@ -36,12 +36,12 @@ from .jsonld import (
     convert_json_ld_entity_to_file_metadata_item,
 )
 from addons.wiki.models import WikiPage
-from addons.weko import settings as weko_settings
+from addons.metadata.apps import SHORT_NAME as METADATA_SHORT_NAME
 
 
 logger = logging.getLogger(__name__)
 
-
+EXPORT_REGISTRATION_SCHEMA_NAME = '公的資金による研究データのメタデータ登録'
 DEFAULT_ADDONS_FILES = [{
     'materialized': '/.weko/',
     'enable': False,
@@ -307,13 +307,12 @@ class BaseROCrateFactory(object):
         self.work_dir = work_dir
         self.include_users = False
 
-    def _ro_crate_path_list(self):
+    def _build_ro_crate_as_json(self):
         crate = ROCrate()
         extra_contexts = [
             'https://w3id.org/ro/terms/workflow-run',
             'https://purl.org/gakunin-rdm/project/0.1',
         ]
-
         crate, files = self._build_ro_crate(crate)
         metadata_file = os.path.join(self.work_dir, 'ro-crate-metadata.json')
         zip_path = os.path.join(self.work_dir, 'work.zip')
@@ -326,6 +325,10 @@ class BaseROCrateFactory(object):
                 ] + extra_contexts
                 with open(metadata_file, 'w') as df:
                     df.write(json.dumps(metadata))
+        return metadata_file, files
+
+    def _ro_crate_path_list(self):
+        metadata_file, files = self._build_ro_crate_as_json()
         yield {
             'fs': metadata_file,
             'n': 'ro-crate-metadata.json',
@@ -333,14 +336,16 @@ class BaseROCrateFactory(object):
         tmp_path = os.path.join(self.work_dir, 'temp.dat')
         total_size = 0
         for path, file, _ in files:
-            logger.info(f'Downloading... {path}')
+            logger.info(f'Downloading... {path}, size={file.size}')
             assert path.startswith('./'), path
+            self._check_file_size(total_size + int(file.size))
             with open(tmp_path, 'wb') as df:
                 file.download_to(df)
             size = os.path.getsize(tmp_path)
+            if size != int(file.size):
+                raise IOError(f'File size mismatch: {size} != {file.size}')
             total_size += size
             logger.info(f'Downloaded: path={path}, size={size} (total downloaded={total_size})')
-            self._check_file_size(total_size)
             yield {
                 'fs': tmp_path,
                 'n': path[2:],
@@ -354,6 +359,11 @@ class BaseROCrateFactory(object):
 
     def _build_ro_crate(self, crate):
         raise NotImplementedError()
+
+    def get_ro_crate_json(self):
+        json_file, _ = self._build_ro_crate_as_json()
+        with open(json_file, 'r') as f:
+            return json.load(f)
 
     def download_to(self, zip_path):
         zfly = zipfly.ZipFly(paths=self._ro_crate_path_list())
@@ -711,12 +721,23 @@ class WikiFile(object):
     def __init__(self, wiki):
         self.wiki = wiki
 
+    @property
+    def size(self):
+        data = self._get_content_as_bytes()
+        return len(data) if data is not None else 0
+
     def download_to(self, f):
-        latest = self.wiki.get_version()
-        if latest is None:
+        data = self._get_content_as_bytes()
+        if data is None:
             logger.warn(f'Wiki content is empty: {self.wiki.page_name}')
             return
-        f.write(latest.content.encode('utf8'))
+        f.write(data)
+
+    def _get_content_as_bytes(self):
+        latest = self.wiki.get_version()
+        if latest is None:
+            return None
+        return latest.content.encode('utf8')
 
 class ROCrateFactory(BaseROCrateFactory):
 
@@ -971,7 +992,11 @@ class ROCrateExtractor(object):
         addon_object = node.get_addon(addon_name)
         if addon_object is None:
             addon_object = node.add_addon(addon_name, auth=Auth(user=self.user), log=False)
-        # TBD: restore addon settings
+        folder_id = addon.properties().get('rdmFolderId', None)
+        if not folder_id:
+            return
+        metadata_addon = node.get_or_add_addon(METADATA_SHORT_NAME, auth=Auth(user=self.user))
+        metadata_addon.add_imported_addon_settings(addon_name, folder_id)
 
     def ensure_folders(self, wb):
         addons = [
@@ -1136,6 +1161,11 @@ class ROCrateExtractor(object):
 
     def _download(self, file):
         resp = requests.get(self.url, stream=True)
+        logger.info(f'GET {self.url} => {resp.status_code}, {resp.url}')
+        # Check whether the response is login page
+        resp_is_html = resp.headers['content-type'].startswith('text/html')
+        if resp.status_code == 200 and 'login' in resp.url and resp_is_html:
+            raise PermissionsError(f'URL {self.url} is not publicly accessible')
         resp.raise_for_status()
         resp.raw.decode_content = True
         shutil.copyfileobj(resp.raw, file)
@@ -1222,20 +1252,6 @@ class WikiExtractor(BaseExtractor):
             Auth(user=self.owner.user),
         )
 
-
-def start_importing(auth, title):
-    serializer = NodeSerializer(context={
-        'request': RequestWrapper(auth),
-    })
-    node = serializer.create({
-        'title': title,
-        'category': 'project',
-        'creator': auth.user,
-    })
-    return node
-
-def _to_date(d):
-    return d.date().isoformat()
 
 def _to_datetime(d):
     return d.isoformat()
@@ -1357,9 +1373,10 @@ def export_project(self, user_id, node_id, config):
     wb = WaterButlerClient(user)
     metadata_addon = node.get_addon(SHORT_NAME)
     schema_id = RegistrationSchema.objects \
-        .filter(name=weko_settings.DEFAULT_REGISTRATION_SCHEMA_NAME) \
+        .filter(name=EXPORT_REGISTRATION_SCHEMA_NAME) \
         .order_by('-schema_version') \
         .first()._id
+    as_ro_crate_json = config.get('json_only', False)
     logger.info(f'Exporting: {node_id}')
     self.update_state(state='exporting node', meta={
         'progress': 0,
@@ -1370,6 +1387,12 @@ def export_project(self, user_id, node_id, config):
     try:
         rocrate = ROCrateFactory(node, work_dir, wb, config)
         zip_path = os.path.join(work_dir, 'package.zip')
+        if as_ro_crate_json:
+            return {
+                'user': user_id,
+                'node': node_id,
+                'json': rocrate.get_ro_crate_json(),
+            }
         rocrate.download_to(zip_path)
         now = datetime.now().strftime('%Y%m%d-%H%M%S')
         file_name_ = f'.rdm-project-{now}.zip'
@@ -1426,22 +1449,32 @@ def export_project(self, user_id, node_id, config):
     finally:
         shutil.rmtree(work_dir)
 
+def _create_node(user, node_title):
+    auth = Auth(user)
+    serializer = NodeSerializer(context={
+        'request': RequestWrapper(auth),
+    })
+    return serializer.create({
+        'title': node_title,
+        'category': 'project',
+        'creator': auth.user,
+    })
+
 @celery_app.task(bind=True, max_retries=3)
-def import_project(self, url, user_id, node_id):
+def import_project(self, url, user_id, node_title):
     user = OSFUser.load(user_id)
-    node = AbstractNode.load(node_id)
     wb = WaterButlerClient(user)
     work_dir = tempfile.mkdtemp()
-    logger.info(f'Importing: {url} -> {node_id}, {work_dir}')
+    logger.info(f'Importing: {url} -> (new node), {work_dir}')
     self.update_state(state='provisioning node', meta={
         'progress': 0,
         'user': user_id,
-        'node': node_id,
     })
-    node.add_addon(SHORT_NAME, auth=Auth(user=user))
     try:
         extractor = ROCrateExtractor(user, url, work_dir)
         logger.info(f'RO-Crate loaded: {extractor.crate}')
+        node = _create_node(user, node_title)
+        node_id = node._id
         extractor.ensure_node(node)
         self.update_state(state='provisioning folders', meta={
             'progress': 10,
@@ -1477,6 +1510,7 @@ def get_task_result(auth, task_id):
     error = None
     info = {}
     if result.failed():
+        logger.info(f'Failed: {result.info}: {type(result.info)}')
         error = str(result.info)
     elif result.info is not None and auth.user._id != result.info['user']:
         raise HTTPError(http_status.HTTP_403_FORBIDDEN)
@@ -1492,6 +1526,8 @@ def get_task_result(auth, task_id):
                 file_url = node.web_url_for('addon_view_or_download_file',
                                             path=path, provider=provider)
                 info['file_url'] = file_url
+            elif 'json' in result.info:
+                info['json'] = result.info['json']
     return {
         'state': result.state,
         'info': info,
