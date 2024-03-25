@@ -267,12 +267,6 @@ class NodeFileCollector(object):
 
         for addon in node.get_addons():
             if addon.config.has_hgrid_files:
-                if addon == osfstorage and region_disabled:
-                    continue  # skip (hide osfstorage)
-                if addon.config.for_institutions:
-                    if region_provider != addon.config.short_name:
-                        continue  # skip (hide this *institutions)
-
                 # WARNING: get_hgrid_data can return None if the addon is added but has no credentials.
                 try:
                     temp = addon.config.get_hgrid_data(addon, self.auth, **self.extra)

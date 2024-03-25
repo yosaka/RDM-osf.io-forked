@@ -1,3 +1,4 @@
+import pytest
 from django.test import RequestFactory
 from django.http import Http404, HttpResponse
 import json
@@ -12,6 +13,7 @@ from osf_tests.factories import (
     RegionFactory,
     InstitutionFactory,
 )
+from django.core.exceptions import PermissionDenied
 
 
 class TestInstitutionDefaultStorage(AdminTestCase):
@@ -73,6 +75,7 @@ class TestInstitutionDefaultStorage(AdminTestCase):
         nt.assert_equal(res.context_data['selected_provider_short_name'], res.context_data['region'].waterbutler_settings['storage']['provider'])
 
 
+@pytest.mark.feature_202210
 class TestIconView(AdminTestCase):
     def setUp(self):
         super(TestIconView, self).setUp()
@@ -106,6 +109,7 @@ class TestIconView(AdminTestCase):
             self.view.get(self.request, *args, **self.view.kwargs)
 
 
+@pytest.mark.feature_202210
 class TestPermissionTestConnection(AdminTestCase):
 
     def setUp(self):
@@ -122,17 +126,15 @@ class TestPermissionTestConnection(AdminTestCase):
         return views.TestConnectionView.as_view()(request)
 
     def test_normal_user(self):
-        response = self.view_post({})
-        self.assertEquals(response.status_code, 302)
-        self.assertEquals(response._headers['location'][1], '/accounts/login/?next=/fake_path')
+        with nt.assert_raises(PermissionDenied):
+            self.view_post({})
 
     def test_staff_without_institution(self):
         self.user.is_staff = True
         self.user.save()
 
-        response = self.view_post({})
-        self.assertEquals(response.status_code, 302)
-        self.assertEquals(response._headers['location'][1], '/accounts/login/?next=/fake_path')
+        with nt.assert_raises(PermissionDenied):
+            self.view_post({})
 
     def test_staff_with_institution(self):
         institution = InstitutionFactory()
@@ -150,8 +152,12 @@ class TestPermissionTestConnection(AdminTestCase):
         self.user.save()
 
         response = self.view_post({})
-        self.assertEquals(response.status_code, 302)
-        self.assertEquals(response._headers['location'][1], '/accounts/login/?next=/fake_path')
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.content, b'{"message": "Provider is missing."}')
+
+        response = self.view_post({'provider_short_name': 'test'})
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.content, b'{"message": "Invalid provider."}')
 
 
 class TestPermissionSaveCredentials(AdminTestCase):
