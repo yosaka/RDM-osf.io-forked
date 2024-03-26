@@ -698,7 +698,7 @@
               "title": "e-Rad 研究者番号|e-Rad Researcher Number",
               "type": "string",
               "format": "text",
-              "required": true,
+              "required": false,
               "pattern": "^[0-9a-zA-Z]*$",
               "space_normalization": true,
               "suggestion": [
@@ -713,7 +713,7 @@
                 },
                 {
                   "key": "contributor:erad",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "number": "erad",
                     "name-ja": "name-ja",
@@ -748,7 +748,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -776,7 +776,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -804,7 +804,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -841,7 +841,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -869,7 +869,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -897,7 +897,7 @@
                     },
                     {
                       "key": "contributor:name",
-                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                      "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                       "autofill": {
                         "../number": "erad",
                         "../name-ja": "name-ja",
@@ -1005,7 +1005,7 @@
             },
             {
               "key": "contributor:erad",
-              "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+              "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
               "autofill": {
                 "grdm-file:data-man-number": "erad",
                 "grdm-file:data-man-name-ja": "name-ja",
@@ -1046,7 +1046,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
@@ -1076,7 +1076,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
@@ -1106,7 +1106,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
@@ -1149,7 +1149,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
@@ -1179,7 +1179,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
@@ -1209,7 +1209,7 @@
                 },
                 {
                   "key": "contributor:name",
-                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}})</small></span></div>",
+                  "template": "<div style=\"background-color: white;\"><span>{{name-ja-full}}|{{name-en-full}}</span><span><small class=\"m-l-md text-muted\">{{erad}}</small></span></div>",
                   "autofill": {
                     "../grdm-file:data-man-number": "erad",
                     "../grdm-file:data-man-name-ja": "name-ja",
