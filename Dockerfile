@@ -69,7 +69,6 @@ COPY ./addons/nextcloudinstitutions/requirements.txt ./addons/nextcloudinstituti
 COPY ./admin/rdm_announcement/requirements.txt ./admin/rdm_announcement/
 COPY ./admin/rdm_statistics/requirements.txt ./admin/rdm_statistics/
 COPY ./addons/metadata/requirements.txt ./addons/metadata/
-COPY ./addons/onlyoffice/requirements.txt ./addons/onlyoffice/
 
 RUN pip3 install pip==21.0
 
@@ -91,7 +90,7 @@ RUN set -ex \
         libpng-dev \
         freetype-dev \
         jpeg-dev \
-    && pip3 install Cython==0.29.36 \
+    && pip3 install Cython \
     && pip3 install numpy==1.19.5 \
     && for reqs_file in \
         /code/requirements.txt \
@@ -178,7 +177,6 @@ COPY ./addons/nextcloudinstitutions/static/ ./addons/nextcloudinstitutions/stati
 COPY ./addons/iqbrims/static/ ./addons/iqbrims/static/
 COPY ./addons/binderhub/static/ ./addons/binderhub/static/
 COPY ./addons/metadata/static/ ./addons/metadata/static/
-COPY ./addons/onlyoffice/static/ ./addons/onlyoffice/static/
 RUN \
     # OSF
     yarn install --frozen-lockfile \

@@ -270,9 +270,6 @@ with open(os.path.join(ROOT, 'addons.json')) as fp:
     ADDONS_BASED_ON_IDS = addon_settings['addons_based_on_ids']
     ADDONS_DEFAULT = addon_settings['addons_default']
     ADDONS_OAUTH_NO_REDIRECT = addon_settings['addons_oauth_no_redirect']
-    INSTITUTIONAL_STORAGE_ADD_ON_METHOD = addon_settings['institutional_storage_add_on_method']
-    INSTITUTIONAL_STORAGE_BULK_MOUNT_METHOD = addon_settings['institutional_storage_bulk_mount_method']
-    ADDONS_HAS_MAX_KEYS = addon_settings['addons_has_max_keys']
 
 SYSTEM_ADDED_ADDONS = {
     'user': [],
@@ -443,7 +440,6 @@ class CeleryConfig:
         'website.identifier.tasks',
         'website.preprints.tasks',
         'website.project.tasks',
-        'admin.rdm_custom_storage_location.tasks',
     }
 
     high_pri_modules = {
@@ -520,7 +516,6 @@ class CeleryConfig:
         'osf.management.commands.check_crossref_dois',
         'osf.management.commands.update_institution_project_counts',
         'nii.mapcore_refresh_tokens',
-        'admin.rdm_custom_storage_location.tasks',
     )
 
     # Modules that need metrics and release requirements

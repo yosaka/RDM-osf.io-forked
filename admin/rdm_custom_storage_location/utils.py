@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import inspect  # noqa
-import logging
 import traceback
 
 from boxsdk import Client as BoxClient, OAuth2
@@ -44,9 +42,6 @@ from osf.models.external import ExternalAccountTemporary, ExternalAccount
 from osf.utils import external_util
 import datetime
 
-from website.util import inspect_info  # noqa
-
-logger = logging.getLogger(__name__)
 
 providers = None
 
@@ -69,8 +64,7 @@ no_storage_name_providers = ['osfstorage', 'onedrivebusiness']
 def have_storage_name(provider_name):
     return provider_name not in no_storage_name_providers
 
-
-def get_providers(available_list=None):
+def get_providers():
     provider_list = []
     for provider in osf_settings.ADDONS_AVAILABLE:
         if 'storage' in provider.categories and provider.short_name in enabled_providers_list:
@@ -79,8 +73,6 @@ def get_providers(available_list=None):
             provider.modal_path = get_modal_path(provider.short_name)
             provider_list.append(provider)
     provider_list.sort(key=lambda x: x.full_name.lower())
-    if isinstance(available_list, list):
-        return [addon for addon in provider_list if addon.short_name in available_list]
     return provider_list
 
 def get_addon_by_name(addon_short_name):

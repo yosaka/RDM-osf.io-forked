@@ -1428,7 +1428,7 @@ function _createFolder(event, dismissCallback, helpText) {
     });
 }
 
-function _createFile(event, dismissCallback, helpText, extension) {
+function _createFile(event, dismissCallback, helpText) {
     var tb = this;
     helpText('');
     var val = $.trim(tb.select('#createFileInput').val());
@@ -1444,15 +1444,16 @@ function _createFile(event, dismissCallback, helpText, extension) {
         helpText(gettext('File name contains illegal characters.'));
         return;
     }
+    //if (!val.match('.(docx|xlsx|pptx)$')) {
+    //    helpText(gettext('File extension should be docx, xlsx, or pptx.'));
+    //    return;
+    //}
 
-    var fname;
-    if (val.match('.(txt|docx|xlsx|pptx)$')) {
-        fname = val.slice(0, val.lastIndexOf('.')) + '.' + extension;
-    } else {
-        fname = val + '.' + extension;
-    }
+    // var extra = {};
+    // var path = parent.data.path || '/';
+    // var options = {name: val, kind: 'file', waterbutlerURL: parent.data.waterbutlerURL};
+    var options = {name: val};
 
-    var options = {name: fname};
     if ((parent.data.provider === 'github') || (parent.data.provider === 'gitlab')) {
         // extra.branch = parent.data.branch;
         options.branch = parent.data.branch;
@@ -1471,10 +1472,6 @@ function _createFile(event, dismissCallback, helpText, extension) {
         item = tb.createItem(item, parent.id);
         orderFolder.call(tb, parent);
         item.notify.update(gettext('New file created!'), 'success', undefined, 1000);
-        if (extension.match('(txt|docx|xlsx|pptx)')) {
-            var edit_url = window.contextVars.osfURL + window.contextVars.currentUser.id + '/editonlyoffice' +item.data.path;
-            window.open(edit_url, 'OnlyofficeEditor');
-        }
         if(dismissCallback) {
             dismissCallback();
         }
@@ -1831,7 +1828,7 @@ function getPersistentLinkFor(item) {
     } else {
         redir.segment('files').segment(item.data.provider).segmentCoded(item.data.path.substring(1));
     }
-    return encodeURI(redir.toString());
+    return redir.toString();
 }
 
 function _createLinkEvent(event, item) {
@@ -2679,50 +2676,23 @@ var FGToolbar = {
                 m('.col-xs-9', [
                     m.component(FGInput, {
                         oninput: m.withAttr('value', ctrl.nameData),
-                        //onkeypress: function (event) {
-                        //    if (ctrl.tb.pressedKey === ENTER_KEY) {
-                        //        ctrl.createFile.call(ctrl.tb, event, ctrl.dismissToolbar);
-                        //    }
-                        //},
+                        onkeypress: function (event) {
+                            if (ctrl.tb.pressedKey === ENTER_KEY) {
+                                ctrl.createFile.call(ctrl.tb, event, ctrl.dismissToolbar);
+                            }
+                        },
                         id: 'createFileInput',
                         value: ctrl.nameData(),
-                        helpTextId: 'createFileHelp',
+                        helpTextId: 'createFolderHelp',      // <- change this.
                         placeholder: gettext('New file name'),
                     }, ctrl.helpText())
                 ]),
                 m('.col-xs-3.tb-buttons-col',
                     m('.fangorn-toolbar.pull-right',
-                        // [
-                        //     m.component(FGButton, {
-                        //         onclick: ctrl.createFile,
-                        //         icon: 'fa fa-plus',
-                        //         className: 'text-success'
-                        //     }),
-                        //     dismissIcon
-                        // ]
                         [
                             m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'txt'); },
-                                //icon: 'fa fa-plus',
-                                icon: 'file-extension _txt',
-                                className: 'text-success'
-                            }),
-                            m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'docx'); },
-                                //icon: 'fa fa-plus',
-                                icon: 'file-extension _docx',
-                                className: 'text-success'
-                            }),
-                            m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'xlsx'); },
-                                //icon: 'fa fa-plus',
-                                icon: 'file-extension _xlsx',
-                                className: 'text-success'
-                            }),
-                            m.component(FGButton, {
-                                onclick: function(event){ _createFile.call(ctrl.tb, event, ctrl.dismissToolbar, ctrl.helpText, 'pptx'); },
-                                //icon: 'fa fa-plus',
-                                icon: 'file-extension _pub',
+                                onclick: ctrl.createFile,
+                                icon: 'fa fa-plus',
                                 className: 'text-success'
                             }),
                             dismissIcon
