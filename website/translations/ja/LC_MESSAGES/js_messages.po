@@ -470,6 +470,10 @@ msgstr "WEKOに登録可能なスキーマに関するファイルメタデー�
 msgid "Select a registration for the file. You can also select a draft registration."
 msgstr "送信するプロジェクトメタデータを選択してください。下書きも指定可能です。"
 
+#: addons/weko/static/wekoFangornConfig.js:583
+msgid "Select a registration for the file."
+msgstr "送信するプロジェクトメタデータを選択してください。"
+
 #: addons/weko/static/wekoFangornConfig.js:607
 msgid ""
 "Do you want to deposit the file/folder \"%1$s\" to WEKO? This operation "
