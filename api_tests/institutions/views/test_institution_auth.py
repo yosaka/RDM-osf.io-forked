@@ -458,7 +458,7 @@ class TestInstitutionAuth:
         username = 'user_datasteward@osf.edu'
         entitlement = 'GakuNinRDMDataSteward'
         res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 204
+        assert res.status_code == 200
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is True
@@ -467,7 +467,7 @@ class TestInstitutionAuth:
         username = 'user_datasteward@osf.edu'
         entitlement = ''
         res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 204
+        assert res.status_code == 200
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is False
