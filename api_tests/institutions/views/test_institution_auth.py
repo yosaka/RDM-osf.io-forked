@@ -22,6 +22,7 @@ def make_user(username, fullname):
 
 
 def make_payload(
+<<<<<<< HEAD
     institution,
     username,
     fullname='Fake User',
@@ -38,6 +39,24 @@ def make_payload(
     organizationalUnit='',
     organizationName='',
     entitlement='',
+=======
+        institution,
+        username,
+        fullname='Fake User',
+        given_name='',
+        family_name='',
+        middle_names='',
+        department='',
+        jaGivenName='',
+        jaSurname='',
+        jaFullname='',
+        jaDisplayName='',
+        jaMiddleNames='',
+        jaOrganizationalUnitName='',
+        organizationalUnit='',
+        organizationName='',
+        entitlement='',
+>>>>>>> rcos-release
 ):
     data = {
         'provider': {
@@ -60,7 +79,11 @@ def make_payload(
                 'organizationalUnitName': organizationalUnit,
                 'organizationName': organizationName,
                 'entitlement': entitlement,
+<<<<<<< HEAD
             },
+=======
+            }
+>>>>>>> rcos-release
         }
     }
 
@@ -457,8 +480,11 @@ class TestInstitutionAuth:
     def test_authenticate_turn_datasteward_on(self, app, institution, url_auth_institution):
         username = 'user_datasteward@osf.edu'
         entitlement = 'GakuNinRDMDataSteward'
-        res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 200
+        res = app.post(
+            url_auth_institution,
+            make_payload(institution, username, entitlement=entitlement)
+        )
+        assert res.status_code == 204
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is True
@@ -466,8 +492,11 @@ class TestInstitutionAuth:
     def test_authenticate_turn_datasteward_off(self, app, institution, url_auth_institution):
         username = 'user_datasteward@osf.edu'
         entitlement = ''
-        res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 200
+        res = app.post(
+            url_auth_institution,
+            make_payload(institution, username, entitlement=entitlement)
+        )
+        assert res.status_code == 204
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is False
@@ -484,9 +513,7 @@ class TestInstitutionAuth:
             user.save()
 
         with capture_signals() as mock_signals:
-            res = await app.post(
-                url_auth_institution, make_payload(institution, username, entitlement='GakuNinRDMDataSteward')
-            )
+            res = await app.post(url_auth_institution, make_payload(institution, username, entitlement='GakuNinRDMDataSteward'))
         assert res.status_code == 204
         assert not mock_signals.signals_sent()
 
