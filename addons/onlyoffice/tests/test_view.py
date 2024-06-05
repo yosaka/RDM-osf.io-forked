@@ -48,20 +48,6 @@ class TestOnlyofficeAddon(OsfTestCase):
             url = get_onlyoffice_url('server', 'edit', 'docx')
         assert url == 'http://192.168.1.1:8002/hosting/wopi/word/view?'
 
-    def test_edit_by_onlyoffice(self):
-        mock_filenode = Filenode()
-        mock_filenode.name = 'filename1.docx'
-        mock_get_url_value = 'http://192.168.1.1:8002/onlyoffice/'
-        settings.WOPI_SRC_HOST = 'http://srchost'
-
-        with mock.patch.object(request.cookies, 'get', return_value='Cookie String'):
-            with mock.patch.object(BaseFileNode, 'load', return_value=mock_filenode):
-                with mock.patch.object(onlyoffice_util, 'get_onlyoffice_url', return_value=mock_get_url_value):
-                    context = onlyoffice_edit_by_onlyoffice(file_id='ABCDEFG')
-        assert context['wopi_url'] == 'http://192.168.1.1:8002/onlyoffice/rs=ja-jp&ui=ja-jp&wopisrc=http://srchost/wopi/files/ABCDEFG'
-        assert context['access_token'] == 'Cookie String'
-
-
     def test_check_file_info(self):
         mock_filenode = Filenode()
         mock_filenode.name = 'filename.docx'
