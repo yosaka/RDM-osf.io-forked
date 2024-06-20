@@ -359,6 +359,7 @@ class TestInstitutionAuth:
             make_payload(institution, username, jaGivenName=jagivenname, jaSurname=jasurname),
             expect_errors=True,
         )
+
         assert res.status_code == 200
 
         user = OSFUser.objects.filter(username=username).first()
