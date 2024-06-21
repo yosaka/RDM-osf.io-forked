@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('osf', '0230_auto_20230518_0407'),
+        ('osf', '0237_ensure_schema_and_reports.py'),
     ]
 
     operations = [
