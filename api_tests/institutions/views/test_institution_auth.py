@@ -93,7 +93,7 @@ class TestInstitutionAuth:
 
         with capture_signals() as mock_signals:
             res = app.post(url_auth_institution, make_payload(institution, username))
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert mock_signals.signals_sent() == set([signals.user_confirmed])
 
         user = OSFUser.objects.filter(username=username).first()
@@ -110,7 +110,7 @@ class TestInstitutionAuth:
 
         with capture_signals() as mock_signals:
             res = app.post(url_auth_institution, make_payload(institution, username))
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert not mock_signals.signals_sent()
 
         user.reload()
@@ -126,7 +126,7 @@ class TestInstitutionAuth:
 
         with capture_signals() as mock_signals:
             res = app.post(url_auth_institution, make_payload(institution, username))
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert not mock_signals.signals_sent()
 
         user.reload()
@@ -146,7 +146,7 @@ class TestInstitutionAuth:
 
         username = 'user_created_with_fullname_only@osf.edu'
         res = app.post(url_auth_institution, make_payload(institution, username))
-        assert res.status_code == 204
+        assert res.status_code == 200
 
         user = OSFUser.objects.filter(username=username).first()
         assert user
@@ -159,7 +159,7 @@ class TestInstitutionAuth:
 
         username = 'user_created_with_names@osf.edu'
         res = app.post(url_auth_institution, make_payload(institution, username, given_name='Foo', family_name='Bar'))
-        assert res.status_code == 204
+        assert res.status_code == 200
 
         user = OSFUser.objects.filter(username=username).first()
         assert user
@@ -187,7 +187,7 @@ class TestInstitutionAuth:
                     department='Fake Department',
                 ),
             )
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert not mock_signals.signals_sent()
 
         user = OSFUser.objects.filter(username=username).first()
@@ -222,7 +222,7 @@ class TestInstitutionAuth:
                     department='Fake Department',
                 ),
             )
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert mock_signals.signals_sent() == set([signals.user_confirmed])
 
         user = OSFUser.objects.filter(username=username).first()
@@ -250,7 +250,7 @@ class TestInstitutionAuth:
 
         with capture_signals() as mock_signals:
             res = app.post(url_auth_institution, make_payload(institution, username, fullname='Fake User'))
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert mock_signals.signals_sent() == set([signals.user_confirmed])
 
         user = OSFUser.objects.filter(username=username).first()
@@ -471,7 +471,7 @@ class TestInstitutionAuth:
         username = 'user_datasteward@osf.edu'
         entitlement = 'GakuNinRDMDataSteward'
         res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 204
+        assert res.status_code == 200
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is True
@@ -480,7 +480,7 @@ class TestInstitutionAuth:
         username = 'user_datasteward@osf.edu'
         entitlement = ''
         res = app.post(url_auth_institution, make_payload(institution, username, entitlement=entitlement))
-        assert res.status_code == 204
+        assert res.status_code == 200
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.is_data_steward is False
@@ -500,7 +500,7 @@ class TestInstitutionAuth:
             res = await app.post(
                 url_auth_institution, make_payload(institution, username, entitlement='GakuNinRDMDataSteward')
             )
-        assert res.status_code == 204
+        assert res.status_code == 200
         assert not mock_signals.signals_sent()
 
         user.reload()
