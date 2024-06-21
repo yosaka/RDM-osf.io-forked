@@ -361,7 +361,6 @@ class TestInstitutionAuth:
         )
 
         assert res.status_code == 200
-
         user = OSFUser.objects.filter(username=username).first()
         assert user
         assert user.ext.data['idp_attr']['fullname_ja'] == jagivenname + ' ' + jasurname
