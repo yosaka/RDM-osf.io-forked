@@ -2090,3 +2090,7 @@ WOPI_CLIENT_COLLABORA   = 'http://grdm-server.grdm.test:9980'
 
 # WOPI_SRC_HOST is web server's host and port which can access FROM WOPI CLIENT.
 WOPI_SRC_HOST = 'http://grdm-server.grdm.test:5000'
+
+# Default values for IAL2 & AAL2 parameters(R-2023-55)
+OSF_IAL2_STR = 'https://www\.gakunin\.jp/profile/IAL2'
+OSF_AAL2_STR = 'https://www\.gakunin\.jp/profile/AAL2'
