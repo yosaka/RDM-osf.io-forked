@@ -2078,3 +2078,7 @@ BABEL_LANGUAGES = {
     'ja_jp': '日本語'
 }
 BABEL_DEFAULT_LOCALE = 'ja'
+
+# Default values for IAL2 & AAL2 parameters(R-2023-55)
+OSF_IAL2_STR = 'https://www\.gakunin\.jp/profile/IAL2'
+OSF_AAL2_STR = 'https://www\.gakunin\.jp/profile/AAL2'
