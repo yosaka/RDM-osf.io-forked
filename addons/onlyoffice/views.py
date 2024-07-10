@@ -216,7 +216,7 @@ def onlyoffice_edit_by_onlyoffice(**kwargs):
         # logger.info('edit_by_onlyoffice.index_view wopi_src = {}'.format(wopi_src))
         wopi_url = wopi_client_url \
             + 'rs=ja-jp&ui=ja-jp'  \
-            + '&wopisrc=' + wopi_src
+            + '&WOPISrc=' + wopi_src
 
     # logger.info('edit_by_online.index_view wopi_url = {}'.format(wopi_url))
 
