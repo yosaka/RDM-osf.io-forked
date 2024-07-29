@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                     AND a.type = b.type
                     AND a._path = b._path
                     AND a.modified < b.modified
-                )
+                );
                 """,
                 # Add unique index to basefilenode of GoogleDrive type
                 """
