@@ -710,6 +710,9 @@ function MetadataButtons() {
       (self.lastFields || []).forEach(function(field) {
         field.setValue(jsonObject[field.question.qid] || '');
       });
+      if (self.lastQuestionPage) {
+        self.lastQuestionPage.validateAll();
+      }
     } catch(err) {
       console.error(logPrefix, 'Could not paste text', err);
       $osf.growl('Error', _('Could not paste text'));
@@ -1557,6 +1560,8 @@ function MetadataButtons() {
           .addClass('metadata-indicator')
           .css('margin-left', '1em');
         text.append(indicator);
+      } else {
+        indicator.empty();
       }
       const filepath = item.data.provider + (item.data.materialized || '/');
       const extraMetadata = self.getExtraMetadata(item);
@@ -1575,7 +1580,6 @@ function MetadataButtons() {
         return false;
       }
       if (metadata) {
-        indicator.empty();
         indicator.append($('<span></span>')
           .text('{}')
           .css('font-weight', 'bold')
@@ -1583,7 +1587,6 @@ function MetadataButtons() {
           .attr('title', _('Metadata is defined')));
         self.setValidatedFile(context, filepath, item, metadata);
       } else {
-        indicator.empty();
         indicator.append($('<span></span>')
           .text('{}')
           .css('font-weight', 'bold')
@@ -1849,26 +1852,62 @@ function MetadataButtons() {
                   .map(function(p) {
                     return toFilepath + p.replace(fromFilepath, '');
                   });
+                const toNodeId = item.data ? item.data.nodeId : null;
+                const fromNodeId = from.data ? from.data.nodeId : null;
+                if (!toNodeId) {
+                  console.log(logPrefix, 'toNodeId is null');
+                  return;
+                }
+                if (!fromNodeId) {
+                  console.log(logPrefix, 'fromNodeId is null');
+                  return;
+                }
+                const toContext = self.findContextByNodeId(toNodeId);
+                const fromContext = self.findContextByNodeId(fromNodeId);
+                if (!toContext) {
+                  console.log(logPrefix, 'toContext is null');
+                  return;
+                }
+                if (!fromContext) {
+                  console.log(logPrefix, 'fromContext is null');
+                  return;
+                }
                 // try reload project metadata
                 const interval = 250;
                 const maxRetry = 10;
+                const intervalIncrease = 250;
                 var retry = 0;
                 function tryLoadMetadata() {
-                  self.loadMetadata(context.nodeId, context.baseUrl, function() {
-                    const context2 = self.findContextByNodeId(context.nodeId);
+                  // Retrieve metadata for the destination project
+                  self.loadMetadata(toContext.nodeId, toContext.baseUrl, function() {
+                    const toProjectMetadata = self.findProjectMetadataByNodeId(toContext.nodeId);
                     const matches = toFilepaths
                       .map(function(p) {
-                        return context2.projectMetadata.files.find(function(f) { return f.path === p; });
+                        return toProjectMetadata.files.find(function(f) { return f.path === p; });
                       });
                     const unmatchCount = matches.filter(function(m) { return !m; }).length;
                     console.log(logPrefix, 'reloaded metadata: ', {
-                      context: context2,
+                      context: toContext,
                       unmatchCount: unmatchCount,
                       expectedFilepaths: toFilepaths
                     });
                     if (!unmatchCount) {
-                      context2.wbcache.clearCache();
-                      m.redraw();
+                      // Retrieve metadata for the source project
+                      self.loadMetadata(fromContext.nodeId, fromContext.baseUrl, function() {
+                        const fromProjectMetadata = self.findProjectMetadataByNodeId(fromContext.nodeId);
+                        const matches = fromFilepaths
+                          .map(function(p) {
+                            return fromProjectMetadata.files.find(function(f) { return f.path === p; });
+                          });
+                        const matchCount = matches.filter(function(m) { return m; }).length;
+                        console.log(logPrefix, 'reloaded metadata: ', {
+                          context: fromContext,
+                          matchCount: matchCount,
+                          expectedFilepaths: fromFilepaths
+                        });
+                        toContext.wbcache.clearCache();
+                        m.redraw();
+                      });
                       return;
                     }
                     retry += 1;
@@ -1877,7 +1916,7 @@ function MetadataButtons() {
                       return;
                     }
                     console.log(logPrefix, retry + 'th retry reload metadata after ' + interval + 'ms: ');
-                    setTimeout(tryLoadMetadata, interval);
+                    setTimeout(tryLoadMetadata, interval + retry * intervalIncrease);
                   });
                 }
                 setTimeout(tryLoadMetadata, interval);
