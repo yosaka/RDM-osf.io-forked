@@ -1839,7 +1839,7 @@ function MetadataButtons() {
                 }
                 const fromFilepath = from.data.provider + (from.data.materialized || '/');
                 const projectMetadata = context.projectMetadata;
-                const fromFilepaths = projectMetadata.files
+                var fromFilepaths = projectMetadata.files
                   .map(function(f) { return f.path; })
                   .filter(function(p) {
                     return p.substring(0, fromFilepath.length) === fromFilepath;
@@ -1848,7 +1848,7 @@ function MetadataButtons() {
                   return;
                 }
                 const toFilepath = item.data.provider + (item.data.materialized || '/');
-                const toFilepaths = fromFilepaths
+                var toFilepaths = fromFilepaths
                   .map(function(p) {
                     return toFilepath + p.replace(fromFilepath, '');
                   });
@@ -1862,8 +1862,8 @@ function MetadataButtons() {
                   console.log(logPrefix, 'fromNodeId is null');
                   return;
                 }
-                const toContext = self.findContextByNodeId(toNodeId);
-                const fromContext = self.findContextByNodeId(fromNodeId);
+                var toContext = self.findContextByNodeId(toNodeId);
+                var fromContext = self.findContextByNodeId(fromNodeId);
                 if (!toContext) {
                   console.log(logPrefix, 'toContext is null');
                   return;
