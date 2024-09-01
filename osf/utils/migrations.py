@@ -45,6 +45,7 @@ FORMAT_TYPE_TO_TYPE_MAP = {
     ('funding-stream-code', 'string'): 'funding-stream-code-input',
     ('e-rad-award-funder', 'choose'): 'e-rad-award-funder-input',
     ('e-rad-award-number', 'string'): 'e-rad-award-number-input',
+    ('pulldown', 'choose'): 'pulldown-input',
     ('e-rad-award-title-ja', 'string'): 'e-rad-award-title-ja-input',
     ('e-rad-award-title-en', 'string'): 'e-rad-award-title-en-input',
     ('e-rad-award-field', 'choose'): 'e-rad-award-field-input',
@@ -220,7 +221,7 @@ def remove_schemas(*args):
 def create_schema_block(state, schema_id, block_type, display_text='', required=False, help_text='',
         registration_response_key=None, schema_block_group_key='', example_text='',
         default=False, pattern=None, space_normalization=False, required_if=None,
-        message_required_if=None, enabled_if=None, suggestion=None):
+        message_required_if=None, enabled_if=None, suggestion=None, auto_value=False, auto_date=False, auto_title=False, hide_projectmetadata=False):
     """
     For mapping schemas to schema blocks: creates a given block from the specified parameters
     """
@@ -262,6 +263,10 @@ def create_schema_block(state, schema_id, block_type, display_text='', required=
         'message_required_if': message_required_if,
         'enabled_if': enabled_if,
         'suggestion': suggestion,
+        'auto_value': auto_value,
+        'auto_date': auto_date,
+        'auto_title': auto_title,
+        'hide_projectmetadata': hide_projectmetadata,
     }
 
     try:
@@ -435,6 +440,9 @@ def create_schema_blocks_for_question(state, rs, question, sub=False):
             message_required_if=question.get('message_required_if', None),
             enabled_if=question.get('enabled_if', None),
             suggestion=question.get('suggestion', None),
+            auto_value=question.get('auto_value', False),
+            auto_date=question.get('auto_date', False),
+            auto_title=question.get('auto_title', False),
         )
 
         # If there are multiple choice answers, create blocks for these as well.
@@ -468,7 +476,8 @@ def map_schemas_to_schemablocks(*args):
                 rs.id,
                 'page-heading',
                 display_text=strip_html(page.get('title', '')),
-                help_text=strip_html(page.get('description', ''))
+                help_text=strip_html(page.get('description', '')),
+                hide_projectmetadata=strip_html(page.get('hide_projectmetadata', False))
             )
             for question in page['questions']:
                 create_schema_blocks_for_question(state, rs, question)
