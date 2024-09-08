@@ -49,6 +49,7 @@ function MetadataButtons() {
   self.registeringFilepath = null;
   self.selectDraftDialog = null;
   self.reservedRows = [];
+  self.moveCompleteHandlers = [];
 
   self.loadConfig = function(callback) {
     if (self.loading !== null) {
@@ -69,6 +70,10 @@ function MetadataButtons() {
         loadedCallback();
       });
     });
+  };
+
+  self.addMoveCompleteHandler = function(handler) {
+    self.moveCompleteHandlers.push(handler);
   };
 
   self.processHash = function() {
@@ -1759,6 +1764,12 @@ function MetadataButtons() {
     });
   }
 
+  self.notifyMoveComplete = function(item, nodeId, metadata) {
+    self.moveCompleteHandlers.forEach(function(handler) {
+      handler(item, nodeId, metadata);
+    });
+  };
+
   self.initFileTree = function() {
     self.initBase(function() {
       const items = self.reservedRows;
@@ -1905,6 +1916,7 @@ function MetadataButtons() {
                       unmatchCount: unmatchCount,
                       expectedFilepaths: toFilepaths
                     });
+                    self.notifyMoveComplete(item, toContext.nodeId, toProjectMetadata);
                     if (!unmatchCount) {
                       // Retrieve metadata for the source project
                       self.loadMetadata(fromContext.nodeId, fromContext.baseUrl, function() {
@@ -1921,6 +1933,7 @@ function MetadataButtons() {
                         });
                         toContext.wbcache.clearCache();
                         m.redraw();
+                        self.notifyMoveComplete(from, fromContext.nodeId, fromProjectMetadata);
                       });
                       return;
                     }
@@ -2501,6 +2514,9 @@ if (contextVars.metadataAddonEnabled) {
         }
       );
       return questionPage;
+    },
+    addMoveCompleteHandler: function(handler) {
+      btn.addMoveCompleteHandler(handler);
     },
   };
   if ($('#fileViewPanelLeft').length > 0) {
