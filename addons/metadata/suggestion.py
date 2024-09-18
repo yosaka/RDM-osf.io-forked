@@ -26,7 +26,6 @@ import chardet
 
 from addons.metadata.apps import AddonAppConfig as AddonAppConfig
 
-import urllib.parse
 import mimetypes
 from api.base.utils import waterbutler_api_url_for
 
