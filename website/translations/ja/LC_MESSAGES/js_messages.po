@@ -170,6 +170,14 @@ msgid ""
 "can break the association of the metadata you have added."
 msgstr "ファイルのリネーム、ファイルやディレクトリの移動、ディレクトリ階層の変更を行うと、入力したメタデータの関連付けが解除される場合があります。"
 
+#: addons/metadata/static/files.js:245
+msgid "Hide Items"
+msgstr "項目を非表示"
+
+#: addons/metadata/static/files.js:248
+msgid "Show Items"
+msgstr "項目を表示"
+
 #: addons/metadata/static/files.js:2032
 msgid "Edit File Metadata"
 msgstr "ファイルメタデータの編集"
@@ -232,6 +240,9 @@ msgstr ""
 #, python-format
 msgid "One of this field or \"%s\" field must be filled."
 msgstr "このフィールドか「%s」フィールドのいずれかを入力する必要があります。"
+
+msgid "File size exceeds the maximum allowed size."
+msgstr "ファイルサイズが最大許容サイズを超えていますので自動取得することができません。"
 
 #: addons/metadata/static/metadata-fields.js:911
 msgid "This field can't be blank."

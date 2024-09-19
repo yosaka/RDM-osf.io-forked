@@ -231,6 +231,9 @@ msgstr ""
 msgid "One of this field or \"%s\" field must be filled."
 msgstr ""
 
+msgid "File size exceeds the maximum allowed size."
+msgstr ""
+
 #: addons/metadata/static/metadata-fields.js:911
 msgid "This field can't be blank."
 msgstr ""

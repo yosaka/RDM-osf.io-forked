@@ -388,6 +388,12 @@ class RegistrationResponsesValidator:
                 'type': 'string',
                 'description': question_text,
             }
+        elif question.block_type == 'pulldown-input':
+            # allow any option
+            return {
+                'type': 'string',
+                'description': question_text,
+            }
         elif question.block_type == 'multi-select-input':
             return {
                 'type': 'array',

@@ -48,6 +48,10 @@ class RegistrationSchemaBlockSerializer(JSONAPISerializer):
     message_required_if = ser.CharField(read_only=True)
     enabled_if = ser.CharField(read_only=True)
     suggestion = ser.CharField(read_only=True)
+    auto_value = ser.BooleanField(read_only=True)
+    auto_date = ser.BooleanField(read_only=True)
+    auto_title = ser.BooleanField(read_only=True)
+    hide_projectmetadata = ser.BooleanField(read_only=True)
     index = ser.IntegerField(read_only=True, source='_order')
 
     links = LinksField({

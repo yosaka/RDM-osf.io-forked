@@ -27,7 +27,7 @@ const getLocalizedText = util.getLocalizedText;
 const normalizeText = util.normalizeText;
 
 const logPrefix = '[metadata] ';
-
+var filteredPages = [];
 
 const QuestionPage = oop.defclass({
   constructor: function(schema, fileItem, options) {
@@ -51,6 +51,14 @@ const QuestionPage = oop.defclass({
     const self = this;
     self.fields = [];
     const fileItemData = self.options.multiple ? {} : self.fileItem.data || {};
+    filteredPages = [];
+    filteredPages = (self.schema.pages || []).filter(function(page) {
+      return (page.questions || []).some(function(question){
+        return question.hide === true;
+      })
+    }).map(function(page){
+      return page;
+    });
     (self.schema.pages || []).forEach(function(page) {
       (page.questions || []).forEach(function(question) {
         if (!self.questionFilter(question)) {
@@ -182,7 +190,36 @@ const QuestionField = oop.extend(Emitter, {
 
   create: function() {
     const self = this;
-    self.element = $('<div></div>').addClass('form-group');
+    if(filteredPages.length > 0 && filteredPages.length != 1){
+      const currentPage = filteredPages.filter(function(page) {
+        return (page.questions || []).some(function (question) {
+          return question.qid === self.question.qid;
+        })
+      });
+
+      const filteredPageIds = currentPage.flatMap(function(page) {
+        return (page.questions || []).filter(function (question) {
+          return question.hide === true;
+        })
+        .map(function (question) {
+          return question.qid.split(':')[1];
+        });
+      });
+
+      const isHide = currentPage.some(function(page) {
+        return (page.questions || []).some(function (question) {
+          return question.qid === self.question.qid && self.question.qid.split(':')[1] != filteredPageIds && self.question.required != true;
+        })
+      });
+
+      if (isHide && filteredPageIds.length == 1) {
+          self.element = $('<div></div>').addClass('form-group-'+filteredPageIds).css('height','0').css('overflow', 'hidden').css('margin','0px');
+      }else{
+        self.element = $('<div></div>').addClass('form-group').css('margin','0px');
+      }
+    }else{
+      self.element = $('<div></div>').addClass('form-group').css('margin','0px');
+    }
 
     // construct header
     const header = $('<div></div>');
@@ -191,6 +228,10 @@ const QuestionField = oop.extend(Emitter, {
     // construct label
     const label = $('<label></label>')
       .text(self.question.title ? getLocalizedText(self.question.title) : self.question.label);
+
+    if(self.question.auto_value){
+      label.append($(' <span>&nbsp; &#10227</span> '));
+    }
     if (self.question.required) {
       label.append($('<span></span>')
         .css('color', 'red')
@@ -198,6 +239,25 @@ const QuestionField = oop.extend(Emitter, {
         .text('*'));
     }
     header.append(label);
+
+    if(self.question.hasOwnProperty('hide') && self.question.hide){
+      const p = $('<p></p>');
+      const a = $('<a></a>').text('▼ '+_('Show Items'));
+      p.on('click', function(){
+        $('.form-group-'+self.question.qid.split(':')[1]).each(function() {
+          if($(this).height() === 0){
+            $(this).animate({height: $(this).get(0).scrollHeight}, 'fast', function() {
+              $(this).css('height', '');
+            });
+            a.text('▲ '+_('Hide Items'));
+          }else {
+            $(this).animate({height: 0}, 'fast');
+            a.text('▼ '+_('Show Items'));
+          }
+        });
+      });
+      self.element.append(p.append(a));
+    }
 
     // construct clear field
     if (self.options.multiple) {
@@ -389,6 +449,7 @@ const TextFormField = oop.extend(FormFieldInterface, {
         return value != null && value !== '';
       }
       const suggestionContainer = createSuggestionButton(
+        self.container,
         self.question, buttonSuggestions, self.options,
         onSuggested, enteredValue
       );
@@ -649,7 +710,11 @@ const ArrayFormField = oop.extend(FormFieldInterface, {
     const headRow = $('<tr>');
     const thead = $('<thead>').append(headRow);
     self.question.properties.forEach(function(prop) {
-      headRow.append($('<th>' + getLocalizedText(prop.title) + '</th>'));
+      if(prop.auto_value){
+        headRow.append($('<th>' + getLocalizedText(prop.title) + '<span>&nbsp; &#10227</span></th>'));
+      }else{
+        headRow.append($('<th>' + getLocalizedText(prop.title) + '</th>'));
+      }
     });
     headRow.append($('<th>'));  // remove button header
 
@@ -1016,7 +1081,7 @@ function suggestForTypeahead(question, templateSuggestions, keyword, options) {
     });
 }
 
-function createSuggestionButton(question, buttonSuggestions, options, onSuggested, enteredValue) {
+function createSuggestionButton(container, question, buttonSuggestions, options, onSuggested, enteredValue) {
   const suggestionContainer = $('<div>')
     .css('margin', 'auto 0 auto 8px');
   buttonSuggestions.forEach(function(suggestion) {
@@ -1041,7 +1106,17 @@ function createSuggestionButton(question, buttonSuggestions, options, onSuggeste
         indicator.show();
         suggestForButton(question, suggestion, options)
           .then(function (value) {
-            onSuggested(value);
+            if(value == 'error'){
+              return;
+            }else if( value == 'auto-value-filesize-over-error'){
+              var name = question.qid.split(':')[1];
+              $('.'+name).remove();
+              container.after(
+                '<div class="'+name+'" style="color: red;">'+ _("File size exceeds the maximum allowed size.")+'</div>'
+               );
+            } else{
+              onSuggested(value);
+            }
           })
           .catch(function (err) {
             console.error(err);

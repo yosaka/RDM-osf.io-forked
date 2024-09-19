@@ -10,6 +10,25 @@ from osf.utils.fields import EncryptedTextField, EncryptedJSONField
 from . import SHORT_NAME
 from .models import ERadRecord
 
+import json
+
+from io import BytesIO
+from website import settings
+from flask import request
+
+import numpy as np
+import openpyxl
+import io
+from PIL import Image
+import imghdr
+import csv
+import chardet
+
+from addons.metadata.apps import AddonAppConfig as AddonAppConfig
+
+import mimetypes
+from api.base.utils import waterbutler_api_url_for
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +45,8 @@ ROR_URL = 'https://api.ror.org/organizations'
 def valid_suggestion_key(key):
     if key == 'file-data-number':
         return True
+    elif key.startswith('auto-'):
+        return True
     elif key == 'ror':
         return True
     elif key.startswith('erad:'):
@@ -41,6 +62,8 @@ def suggestion_metadata(key, keyword, filepath, node):
     suggestions = []
     if key == 'file-data-number':
         suggestions.extend(suggestion_file_data_number(key, filepath, node))
+    elif key.startswith('auto-'):
+        suggestions.extend(suggestion_file_metadata_auto_value(key, keyword, filepath, node))
     elif key == 'ror':
         suggestions.extend(suggestion_ror(key, keyword))
     elif key.startswith('erad:'):
@@ -53,6 +76,312 @@ def suggestion_metadata(key, keyword, filepath, node):
         raise KeyError('Invalid key: {}'.format(key))
     return suggestions
 
+def suggestion_file_metadata_auto_value(key, keyword, filepath, node):
+    data = ''
+    error_string = ''
+    extension = ''
+    try:
+        parts = filepath.split('/', 1)
+        provider = parts[0]
+        path = '/' + parts[1]
+
+        cookie = request.cookies.get(settings.COOKIE_NAME)
+        cookies = {settings.COOKIE_NAME: cookie}
+
+        url = waterbutler_api_url_for(node._id, provider, path, _internal=True)
+
+        file_size, extension = get_file_size_and_extension(url, cookies)
+
+        excelmaximumsize = AddonAppConfig.excel_maximun_file_size
+        textmaximumsize = AddonAppConfig.text_maximun_file_size
+        imagemaximumsize = AddonAppConfig.image_maximun_file_size
+        othermaximumsize = AddonAppConfig.other_maximun_file_size
+
+        if (key == 'auto-file-number-of-rows-excel' or key == 'auto-file-number-of-columns-excel') and extension in AddonAppConfig.excel_file_extension:
+            if file_size < excelmaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    byteCode = BytesIO(response)
+                    workbook = openpyxl.load_workbook(byteCode, data_only=True)
+                    sheet_name = workbook.sheetnames[0]
+                    worksheet = workbook[sheet_name]
+                    excel_data = np.array([[cell.value for cell in row] for row in worksheet.iter_rows()])
+                    rows, columns = excel_data.shape
+                    data = str(rows) + str(columns)
+
+                    if key == 'auto-file-number-of-rows-excel':
+                        data = str(rows)
+                    elif key == 'auto-file-number-of-columns-excel':
+                        data = str(columns)
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-number-of-rows-text' and extension in AddonAppConfig.text_file_extension:
+            if file_size < textmaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    encoding_info = chardet.detect(response)
+                    text_data = encoding_info['encoding']
+                    content = response.decode(text_data)
+                    csv_data = io.StringIO(content)
+
+                    row_count = sum(1 for _ in csv_data)
+                    data = str(row_count)
+
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-number-of-columns-text' and extension in AddonAppConfig.text_file_extension:
+            if file_size < textmaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    text_data = chardet.detect(response).get('encoding')
+                    content = response.decode(text_data)
+
+                # Detect the delimiter
+                    delimiter = detect_delimiter(content, AddonAppConfig.delimiters)
+
+                    if delimiter:
+                        csv_data = io.StringIO(content)
+                        csv_reader = csv.reader(csv_data, delimiter=delimiter)
+                        first_row = next(csv_reader, None)
+
+                        if first_row is not None:
+                            column_count = len(first_row)
+                            data = str(column_count)
+                        else:
+                            data = '0'
+                    else:
+                        data = 'delimiter-not-found'
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-delimiter' and extension in AddonAppConfig.text_file_extension:
+            if file_size < textmaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    content = response.decode('utf-8')
+                    object = io.StringIO(content)
+                    simple_lines = object.getvalue().splitlines()
+                    delimiters = AddonAppConfig.delimiters
+                    delimiter_counts = {delimiter: 0 for delimiter in delimiters}
+
+                    first_delimiter = None
+
+                    for line in simple_lines:
+                        for delimiter in delimiters:
+                            count = line.count(delimiter)
+                            if count > 0:
+                                delimiter_counts[delimiter] += count
+                                if first_delimiter is None:
+                                    first_delimiter = delimiter
+
+                    # Determine the most frequent delimiter
+                    max_count = max(delimiter_counts.values())
+                    most_frequent_delimiters = [
+                        delimiter for delimiter, count in delimiter_counts.items() if count == max_count
+                    ]
+
+                    if len(most_frequent_delimiters) == 1:
+                        # If only one delimiter has the maximum count, use it
+                        data = delimiters[most_frequent_delimiters[0]]
+                    else:
+                        # If there's a tie, use the first delimiter that appeared in the file
+                        data = delimiters[first_delimiter]
+
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-image-type' and extension in AddonAppConfig.image_file_extension:
+            if file_size < imagemaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    image_type = imghdr.what(None, h=response)
+                    if image_type is not None:
+                        data = str(image_type)
+                    else:
+                        data = str('')
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-color-b&w' and extension in AddonAppConfig.image_file_extension:
+            if file_size < imagemaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    image_data = b''
+
+                    with requests.get(url, cookies=cookies, stream=True) as r:
+                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                image_data += chunk
+                                try:
+                                    image = Image.open(BytesIO(image_data)).convert('RGB')
+                                    w, h = image.size
+                                    pixels = image.load()
+
+                                    is_black = True
+                                    for i in range(w):
+                                        for j in range(h):
+                                            r, g, b = pixels[i, j]
+                                            if r != g or r != b or g != b:
+                                                is_black = False
+                                                break
+                                        if not is_black:
+                                            break
+
+                                    if is_black:
+                                        data = 'monochrome'
+                                    else:
+                                        data = 'color'
+                                except Exception:
+                                    continue
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-text/binary' and (extension in AddonAppConfig.text_file_extension or extension in AddonAppConfig.excel_file_extension or extension in AddonAppConfig.image_file_extension):
+            if file_size < othermaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    # Download the content directly into a variable
+                    with requests.get(url, cookies=cookies, stream=True) as r:
+                        file_content = b''
+                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                            file_content += chunk
+
+                    # Determine if the content is binary or text
+                    if isBinary(file_content, extension):
+                        data = 'binary'
+                    else:
+                        data = 'text'
+
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-resolution' and extension in AddonAppConfig.image_file_extension:
+            if file_size < imagemaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    Image.MAX_IMAGE_PIXELS = None
+                    image = Image.open(BytesIO(response))
+
+                    dpi_info = image.info.get('dpi')
+                    if dpi_info:
+                        horizontal_dpi = dpi_info[0]
+
+                    else:
+                        horizontal_dpi = 'Unknown'
+
+                    data = f'{horizontal_dpi} dpi'
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-character-code' and extension in AddonAppConfig.text_file_extension:
+            if file_size < textmaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    encoding = chardet.detect(response).get('encoding')
+                    data = str(encoding)
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+        elif key == 'auto-file-data-size' and extension in AddonAppConfig.image_file_extension:
+            if file_size < imagemaximumsize:
+                response = download_file(url, cookies)
+                try:
+                    Image.MAX_IMAGE_PIXELS = None
+                    image = Image.open(BytesIO(response))
+                    width, height = image.size
+                    data = str(width) + ' x ' + str(height)
+                except Exception as e:
+                    data = ''
+                    error_string = error_string + str(e)
+            else:
+                data = 'auto-value-filesize-over-error'
+
+    except Exception as e:
+        data = ''
+        error_string = error_string + str(e)
+    return [{
+        'key': key,
+        'value': data,
+        'error': error_string,
+    }]
+
+def isBinary(file_content, extension):
+    """Binary file detection.
+    Determine by MIME type and content if MIME is not enough.
+    """
+    ret = False
+    m = mimetypes.guess_type('dummy.' + extension)[0]
+    if m is None:
+        encode = chardet.detect(file_content)['encoding']
+
+        # If encoding is None, consider it binary
+        if encode is None:
+            ret = True
+        elif isBinary08HCharacter(file_content):
+            ret = True
+    else:
+        if 'office' in m or m.startswith('image') or m.startswith('application/vnd.ms-excel'):
+            ret = True
+        elif m.startswith('text'):
+            ret = False
+
+    return ret
+
+def isBinary08HCharacter(buf):
+    """Binary file detection.
+    Check for ASCII code below 08H to determine binary.
+    """
+    ret = False
+    for b in buf:
+        if b < 9:
+            ret = True
+            break
+    return ret
+
+
+def readdump(dumpname, mode='r'):
+    buf = ''
+    with open(dumpname, mode) as f:
+        buf = f.read()
+    return buf
+
+def detect_delimiter(content, delimiters):
+    csv_data = io.StringIO(content)
+    lines = csv_data.getvalue().splitlines()  # Read all lines
+    for line in lines:
+        for delimiter in delimiters:
+            if delimiter in line:
+                return delimiter
+    return None
 
 def suggestion_file_data_number(key, filepath, node):
     parts = filepath.split('/')
@@ -155,6 +484,29 @@ def _erad_candidates(**pred):
         for record in ERadRecord.objects.filter(**pred)
     ]
 
+def get_file_size_and_extension(url, cookies):
+    try:
+        response = requests.head(url, cookies=cookies, stream=True)
+        response.raise_for_status()
+        content_length = response.headers.get('Content-Length')
+        if content_length is not None:
+            file_size = int(content_length)
+        else:
+            raise ValueError('The Content-Length header is missing.')
+
+        content_disposition = response.headers.get('X-Waterbutler-Metadata')
+        metadata_json = json.loads(content_disposition)
+        file_name = metadata_json.get('attributes', {}).get('name')
+        extension = file_name.split('.')[-1]
+        logger.info(file_size)
+        logger.info(extension)
+        return file_size, extension
+    except requests.RequestException:
+        return None, None
+
+def download_file(url, cookies):
+    response = requests.get(url, cookies=cookies).content
+    return response
 
 def suggestion_asset(key, keyword, node):
     addon = node.get_addon(SHORT_NAME)
