@@ -4,6 +4,7 @@ from nose.tools import *  # noqa
 import pytest
 import unittest
 
+from django.db import IntegrityError
 from osf.models import NodeLog
 from tests.base import get_default_metaschema
 from osf_tests.factories import ProjectFactory, OsfStorageFileFactory
