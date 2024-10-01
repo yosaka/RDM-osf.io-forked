@@ -37,7 +37,7 @@ def noop(*args):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('addons_metadata', '0007_user_to_file_metadata'),
+        ('addons_metadata', '0010_registrationreportformat_order'),
     ]
 
     operations = [

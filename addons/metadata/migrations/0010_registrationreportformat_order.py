@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('addons_metadata', '0011_importedaddonsettings'),
+        ('addons_metadata', '0009_importedaddonsettings'),
     ]
 
     operations = [
