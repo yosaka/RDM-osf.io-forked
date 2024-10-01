@@ -1129,4 +1129,3 @@ class OsfStorageFileFactory(DjangoModelFactory):
     target_content_type = factory.SubFactory(ContentTypeFactory)
     target_object_id = 1
     path = 'fake_path'
-
