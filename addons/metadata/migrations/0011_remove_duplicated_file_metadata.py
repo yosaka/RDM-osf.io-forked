@@ -42,8 +42,4 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(ensure_unique_project_id_path, noop),
-        migrations.AlterUniqueTogether(
-            name='filemetadata',
-            unique_together=set([('project_id', 'path')]),
-        ),
     ]
