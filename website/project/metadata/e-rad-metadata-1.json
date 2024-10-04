@@ -294,7 +294,6 @@
           "title": "掲載日・掲載更新日|Date (Issued / Updated)",
           "type": "string",
           "format": "date",
-          "required": true,
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
           "help": "例: 2010-01-01|E.g., 2010-01-01"
         },
