@@ -49,6 +49,7 @@ function MetadataButtons() {
   self.registeringFilepath = null;
   self.selectDraftDialog = null;
   self.reservedRows = [];
+  self.moveCompleteHandlers = [];
 
   self.loadConfig = function(callback) {
     if (self.loading !== null) {
@@ -69,6 +70,10 @@ function MetadataButtons() {
         loadedCallback();
       });
     });
+  };
+
+  self.addMoveCompleteHandler = function(handler) {
+    self.moveCompleteHandlers.push(handler);
   };
 
   self.processHash = function() {
@@ -165,7 +170,7 @@ function MetadataButtons() {
       );
     }).fail(function(xhr, status, error) {
       self.loadingMetadatas[nodeId] = false;
-      if (error === 'BAD REQUEST') {
+      if (xhr.status === 400) {
         if (!self.contexts) {
           self.contexts = {};
         }
@@ -181,6 +186,7 @@ function MetadataButtons() {
           addonAttached: false
         };
       } else {
+        $osf.growl('Error', 'Error while retrieving addon info for "' + nodeId + '": ' + xhr.status);
         Raven.captureMessage('Error while retrieving addon info', {
           extra: {
               url: url,
@@ -556,25 +562,27 @@ function MetadataButtons() {
         .css('display', 'flex')
         .append(pasteButton));
     }
-    dialog.customHandler.empty();
-    if (item.data && item.data.provider && contextVars.metadataHandlers && contextVars.metadataHandlers[item.data.provider]) {
-      const customButton = contextVars.metadataHandlers[item.data.provider];
-      const button = $('<a href="#" class="btn btn-success"></a>')
-        .text(customButton.text)
-        .css('margin-left', '5px');
-      button.click(function() {
-        osfBlock.block();
-        self.saveEditMetadataModal()
-          .finally(function() {
-            osfBlock.unblock();
-            $(dialog.dialog).modal('hide');
-            const activeItems = (self.lastMetadata.items || []).filter(function(item_) {
-              return item_.active;
-            });
-            customButton.click(item, self.currentSchemaId, activeItems[0] || null);
-          })
-      });
-      dialog.customHandler.append(button);
+    if (dialog.customHandler) {
+      dialog.customHandler.empty();
+      if (item.data && item.data.provider && contextVars.metadataHandlers && contextVars.metadataHandlers[item.data.provider]) {
+        const customButton = contextVars.metadataHandlers[item.data.provider];
+        const button = $('<a href="#" class="btn btn-success"></a>')
+          .text(customButton.text)
+          .css('margin-left', '5px');
+        button.click(function() {
+          osfBlock.block();
+          self.saveEditMetadataModal()
+            .finally(function() {
+              osfBlock.unblock();
+              $(dialog.dialog).modal('hide');
+              const activeItems = (self.lastMetadata.items || []).filter(function(item_) {
+                return item_.active;
+              });
+              customButton.click(item, self.currentSchemaId, activeItems[0] || null);
+            })
+        });
+        dialog.customHandler.append(button);
+      }
     }
     self.prepareFields(
       context,
@@ -658,6 +666,7 @@ function MetadataButtons() {
     console.log(logPrefix, 'copy to clipboard');
     copyStatus.text('');
     if (!navigator.clipboard) {
+      $osf.growl('Error', _('Could not copy text'));
       Raven.captureMessage(_('Could not copy text'), {
         extra: {
           error: 'navigator.clipboard API is not supported.',
@@ -672,6 +681,7 @@ function MetadataButtons() {
     navigator.clipboard.writeText(text).then(function() {
       copyStatus.text(_('Copied!'));
     }, function(err) {
+      $osf.growl('Error', _('Could not copy text'));
       Raven.captureMessage(_('Could not copy text'), {
         extra: {
           error: err.toString(),
@@ -696,6 +706,7 @@ function MetadataButtons() {
     navigator.clipboard.readText().then(function(text) {
       self.setMetadataFromJson(text);
     }, function(err) {
+      $osf.growl('Error', _('Could not paste text'));
       Raven.captureMessage(_('Could not paste text'), {
         extra: {
           error: err.toString(),
@@ -710,7 +721,12 @@ function MetadataButtons() {
       (self.lastFields || []).forEach(function(field) {
         field.setValue(jsonObject[field.question.qid] || '');
       });
+      if (self.lastQuestionPage) {
+        self.lastQuestionPage.validateAll();
+      }
     } catch(err) {
+      console.error(logPrefix, 'Could not paste text', err);
+      $osf.growl('Error', _('Could not paste text'));
       Raven.captureMessage(_('Could not paste text'), {
         extra: {
           error: err.toString(),
@@ -837,6 +853,7 @@ function MetadataButtons() {
                 .text(_('Delete metadata'))));
           })
           .catch(function(err) {
+            $osf.growl('Error', _('Could not list hashes') + ': ' + err.toString());
             Raven.captureMessage(_('Could not list hashes'), {
               extra: {
                 error: err.toString()
@@ -845,6 +862,7 @@ function MetadataButtons() {
           });
       })
       .catch(function(err) {
+        $osf.growl('Error', _('Could not list files') + ': ' + err.toString());
         Raven.captureMessage(_('Could not list files'), {
           extra: {
             error: err.toString()
@@ -877,6 +895,8 @@ function MetadataButtons() {
           window.location.reload();
         }).fail(function(xhr, status, error) {
           reject(error)
+          $osf.growl('Error',
+            'Error while retrieving addon info for ' + self.currentMetadata.path + ': ' + xhr.status);
           Raven.captureMessage('Error while retrieving addon info', {
             extra: {
               url: url,
@@ -887,6 +907,8 @@ function MetadataButtons() {
         });
       }).fail(function(xhr, status, error) {
         reject(error);
+        $osf.growl('Error',
+          'Error while retrieving addon info for ' + self.currentMetadata.path + ': ' + xhr.status);
         Raven.captureMessage('Error while retrieving addon info', {
           extra: {
             url: url,
@@ -921,6 +943,8 @@ function MetadataButtons() {
         });
       }).fail(function(xhr, status, error) {
         reject(error);
+        $osf.growl('Error',
+          'Error while retrieving addon info for ' + filepath + ': ' + xhr.status);
         Raven.captureMessage('Error while retrieving addon info', {
           extra: {
             url: url,
@@ -1281,6 +1305,7 @@ function MetadataButtons() {
         self.draftRegistrations.load();
       })
       .catch(function(url, xhr, status, error) {
+        $osf.growl('Error', 'Error while retrieving addon info for ' + filepath + ': ' + xhr.status);
         Raven.captureMessage('Error while retrieving addon info', {
             extra: {
                 url: url,
@@ -1481,6 +1506,7 @@ function MetadataButtons() {
             })
           };
         }).fail(function(xhr, status, error) {
+          $osf.growl('Error', 'Error while saving addon info for ' + filepath + ': ' + xhr.status);
           Raven.captureMessage('Error while saving addon info', {
               extra: {
                   url: url,
@@ -1555,6 +1581,8 @@ function MetadataButtons() {
           .addClass('metadata-indicator')
           .css('margin-left', '1em');
         text.append(indicator);
+      } else {
+        indicator.empty();
       }
       const filepath = item.data.provider + (item.data.materialized || '/');
       const extraMetadata = self.getExtraMetadata(item);
@@ -1573,7 +1601,6 @@ function MetadataButtons() {
         return false;
       }
       if (metadata) {
-        indicator.empty();
         indicator.append($('<span></span>')
           .text('{}')
           .css('font-weight', 'bold')
@@ -1581,7 +1608,6 @@ function MetadataButtons() {
           .attr('title', _('Metadata is defined')));
         self.setValidatedFile(context, filepath, item, metadata);
       } else {
-        indicator.empty();
         indicator.append($('<span></span>')
           .text('{}')
           .css('font-weight', 'bold')
@@ -1740,6 +1766,12 @@ function MetadataButtons() {
     });
   }
 
+  self.notifyMoveComplete = function(item, nodeId, metadata) {
+    self.moveCompleteHandlers.forEach(function(handler) {
+      handler(item, nodeId, metadata);
+    });
+  };
+
   self.initFileTree = function() {
     self.initBase(function() {
       const items = self.reservedRows;
@@ -1780,12 +1812,19 @@ function MetadataButtons() {
                                   item : item }),
                     ].concat(buttons);
                     if (item.kind === 'folder' && !item.data.addonFullname) {
-                      const importDatasetButton = new ImportDatasetButton(tb, item, {
-                        assign: function() {
-                          return tempIdCounterForDataset ++;
+                      const importDatasetButton = new ImportDatasetButton(
+                        tb,
+                        item,
+                        self.contexts,
+                        {
+                          assign: function() {
+                            return tempIdCounterForDataset ++;
+                          }
                         }
-                      });
-                      viewButtons.push(importDatasetButton.createButton());
+                      );
+                      if (importDatasetButton.isAvailable()) {
+                        viewButtons.push(importDatasetButton.createButton());
+                      }
                     }
                     return m('span', viewButtons);
                   }
@@ -1834,7 +1873,7 @@ function MetadataButtons() {
                 }
                 const fromFilepath = from.data.provider + (from.data.materialized || '/');
                 const projectMetadata = context.projectMetadata;
-                const fromFilepaths = projectMetadata.files
+                var fromFilepaths = projectMetadata.files
                   .map(function(f) { return f.path; })
                   .filter(function(p) {
                     return p.substring(0, fromFilepath.length) === fromFilepath;
@@ -1843,30 +1882,68 @@ function MetadataButtons() {
                   return;
                 }
                 const toFilepath = item.data.provider + (item.data.materialized || '/');
-                const toFilepaths = fromFilepaths
+                var toFilepaths = fromFilepaths
                   .map(function(p) {
                     return toFilepath + p.replace(fromFilepath, '');
                   });
+                const toNodeId = item.data ? item.data.nodeId : null;
+                const fromNodeId = from.data ? from.data.nodeId : null;
+                if (!toNodeId) {
+                  console.log(logPrefix, 'toNodeId is null');
+                  return;
+                }
+                if (!fromNodeId) {
+                  console.log(logPrefix, 'fromNodeId is null');
+                  return;
+                }
+                var toContext = self.findContextByNodeId(toNodeId);
+                var fromContext = self.findContextByNodeId(fromNodeId);
+                if (!toContext) {
+                  console.log(logPrefix, 'toContext is null');
+                  return;
+                }
+                if (!fromContext) {
+                  console.log(logPrefix, 'fromContext is null');
+                  return;
+                }
                 // try reload project metadata
                 const interval = 250;
                 const maxRetry = 10;
+                const intervalIncrease = 250;
                 var retry = 0;
                 function tryLoadMetadata() {
-                  self.loadMetadata(context.nodeId, context.baseUrl, function() {
-                    const context2 = self.findContextByNodeId(context.nodeId);
+                  // Retrieve metadata for the destination project
+                  self.loadMetadata(toContext.nodeId, toContext.baseUrl, function() {
+                    const toProjectMetadata = self.findProjectMetadataByNodeId(toContext.nodeId);
                     const matches = toFilepaths
                       .map(function(p) {
-                        return context2.projectMetadata.files.find(function(f) { return f.path === p; });
+                        return toProjectMetadata.files.find(function(f) { return f.path === p; });
                       });
                     const unmatchCount = matches.filter(function(m) { return !m; }).length;
                     console.log(logPrefix, 'reloaded metadata: ', {
-                      context: context2,
+                      context: toContext,
                       unmatchCount: unmatchCount,
                       expectedFilepaths: toFilepaths
                     });
+                    self.notifyMoveComplete(item, toContext.nodeId, toProjectMetadata);
                     if (!unmatchCount) {
-                      context2.wbcache.clearCache();
-                      m.redraw();
+                      // Retrieve metadata for the source project
+                      self.loadMetadata(fromContext.nodeId, fromContext.baseUrl, function() {
+                        const fromProjectMetadata = self.findProjectMetadataByNodeId(fromContext.nodeId);
+                        const matches = fromFilepaths
+                          .map(function(p) {
+                            return fromProjectMetadata.files.find(function(f) { return f.path === p; });
+                          });
+                        const matchCount = matches.filter(function(m) { return m; }).length;
+                        console.log(logPrefix, 'reloaded metadata: ', {
+                          context: fromContext,
+                          matchCount: matchCount,
+                          expectedFilepaths: fromFilepaths
+                        });
+                        toContext.wbcache.clearCache();
+                        m.redraw();
+                        self.notifyMoveComplete(from, fromContext.nodeId, fromProjectMetadata);
+                      });
                       return;
                     }
                     retry += 1;
@@ -1875,7 +1952,7 @@ function MetadataButtons() {
                       return;
                     }
                     console.log(logPrefix, retry + 'th retry reload metadata after ' + interval + 'ms: ');
-                    setTimeout(tryLoadMetadata, interval);
+                    setTimeout(tryLoadMetadata, interval + retry * intervalIncrease);
                   });
                 }
                 setTimeout(tryLoadMetadata, interval);
@@ -1943,6 +2020,7 @@ function MetadataButtons() {
             });
           }).fail(function(xhr, status, error) {
             reject(error);
+            $osf.growl('Error', 'Error while retrieving addon info for ' + metadata.path + ': ' + xhr.status);
             Raven.captureMessage('Error while retrieving addon info', {
               extra: {
                 url: url,
@@ -2041,6 +2119,7 @@ function MetadataButtons() {
                 resolve();
               }
             }).fail(function(xhr, status, error) {
+              $osf.growl('Error', 'Error while retrieving addon info for ' + metadata.path + ': ' + xhr.status);
               Raven.captureMessage('Error while retrieving addon info', {
                 extra: {
                   url: url,
@@ -2148,7 +2227,7 @@ function MetadataButtons() {
       container: container,
       toolbar: toolbar,
       copyStatus: copyStatus,
-      customHandler: customHandler,
+      customHandler: editable ? customHandler : null,
     };
   };
 
@@ -2207,7 +2286,11 @@ function MetadataButtons() {
     const dialog = $('<div class="modal fade"></div>');
     const close = $('<a href="#" class="btn btn-default" data-dismiss="modal"></a>').text(_('Close'));
     close.click(self.closeModal);
-    const del = $('<a href="#" class="btn btn-success"></a>').text(_('Delete'));
+    /*
+      Workaround: Cannot use .modal-footer here, because .modal-footer .btn-danger combination
+      may be unintentionally manipulated by Fangorn
+    */
+    const del = $('<a href="#" class="btn btn-danger" style="margin-left: 5px"></a>').text(_('Delete'));
     del.click(function() {
       osfBlock.block()
       self.deleteConfirmedModal()
@@ -2226,7 +2309,7 @@ function MetadataButtons() {
               .append($('<div class="row"></div>')
                 .append($('<div class="col-sm-12"></div>')
                   .append(_('Do you want to delete metadata? This operation cannot be undone.')))))
-            .append($('<div class="modal-footer"></div>')
+            .append($('<div style="padding: 15px; text-align: right;"></div>')
               .append(close).append(del)))));
     dialog.appendTo($('#treeGrid'));
     return dialog;
@@ -2444,6 +2527,9 @@ if (contextVars.metadataAddonEnabled) {
         }
       );
       return questionPage;
+    },
+    addMoveCompleteHandler: function(handler) {
+      btn.addMoveCompleteHandler(handler);
     },
   };
   if ($('#fileViewPanelLeft').length > 0) {

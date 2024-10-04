@@ -453,6 +453,10 @@ msgstr ""
 msgid "Select a registration for the file. You can also select a draft registration."
 msgstr ""
 
+#: addons/weko/static/wekoFangornConfig.js:583
+msgid "Select a registration for the file."
+msgstr ""
+
 #: addons/weko/static/wekoFangornConfig.js:607
 msgid ""
 "Do you want to deposit the file/folder \"%1$s\" to WEKO? This operation "
