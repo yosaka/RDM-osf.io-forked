@@ -10,6 +10,7 @@ from osf.models import BaseFileNode
 from . import util as onlyoffice_util
 from . import proof_key as pfkey
 from . import settings
+from . import token
 from website import settings as websettings
 
 from framework.auth.decorators import must_be_logged_in
@@ -22,18 +23,32 @@ pkhelper = pfkey.ProofKeyHelper()
 
 # Do not add decorator, or else online editor will not open.
 def onlyoffice_check_file_info(**kwargs):
-    file_id = kwargs['file_id']
-    file_version = onlyoffice_util.get_file_version(file_id)
-    # logger.info('check_file_info : file_id = {}, file_version = {}'.format(file_id, file_version))
+    access_token = request.args.get('access_token', '')
+    if access_token == '':
+        return Response(response='', status=500)
 
+    # proof key check
+    if onlyoffice_util.check_proof_key(pkhelper, request, access_token) is False:
+        return Response(response='', status=500)
+
+    jsonobj = token.decrypt(access_token)
+    # logger.info('check_file_info jsonobj = {}'.format(jsonobj))
+    if jsonobj is None:
+        return Response(response='', status=500)
+
+    # token check
+    file_id = kwargs['file_id']
+    if token.check_token(jsonobj, file_id) is False:
+        return Response(response='', status=500)
+
+    cookie = token.get_cookie(jsonobj)    
+    user_info = onlyoffice_util.get_user_info(cookie)
     file_node = BaseFileNode.load(file_id)
     if file_node is None:
         logger.error('BaseFileNode None')
-        return
-
-    access_token = request.args.get('access_token', '')
-    cookies = {websettings.COOKIE_NAME: access_token}
-    user_info = onlyoffice_util.get_user_info(access_token)
+        return Response(response='', status=500)
+    file_version = onlyoffice_util.get_file_version(file_id)
+    cookies = { websettings.COOKIE_NAME: cookie }
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     filename = '' if file_info is None else file_info['name']
 
@@ -93,35 +108,37 @@ def onlyoffice_check_file_info(**kwargs):
 
 # Do not add decorator, or else online editor will not open.
 def onlyoffice_file_content_view(**kwargs):
-    file_id = kwargs['file_id']
-    file_version = onlyoffice_util.get_file_version(file_id)
-
-    file_node = BaseFileNode.load(file_id)
     access_token = request.args.get('access_token', '')
-    cookies = {websettings.COOKIE_NAME: access_token}
+    if access_token == '':
+        return Response(response='', status=500)
 
-    user_info = onlyoffice_util.get_user_info(access_token)
+    # proof key check
+    if onlyoffice_util.check_proof_key(pkhelper, request, access_token) is False:
+        return Response(response='', status=500)
+
+    jsonobj = token.decrypt(access_token)
+    # logger.info('file_content_view jsonobj = {}'.format(jsonobj))
+    if jsonobj is None:
+        return Response(response='', status=500)
+
+    # token check
+    file_id = kwargs['file_id']
+    if token.check_token(jsonobj, file_id) is False:
+        return Response(response='', status=500)
+
+    cookie = token.get_cookie(jsonobj)
+    user_info = onlyoffice_util.get_user_info(cookie)
+    file_node = BaseFileNode.load(file_id)
+    if file_node is None:
+        logger.error('BaseFileNode None')
+        return Response(response='', status=500)
+    file_version = onlyoffice_util.get_file_version(file_id)
+    cookies = { websettings.COOKIE_NAME: cookie }
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     filename = '' if file_info is None else file_info['name']
 
     # logger.info('file_content_view: method, file_id, access_token = {} {} {}'.format(request.method, file_id, access_token))
     # logger.info('waterbutler url = {}'.format(websettings.WATERBUTLER_URL))
-
-    proof = request.headers.get('X-Wopi-Proof')
-    proofOld = request.headers.get('X-Wopi-ProofOld')
-    timeStamp = int(request.headers.get('X-Wopi-TimeStamp'))
-    url = request.url
-    #logger.info('file_content_view get header X-Wopi Proof =    {}'.format(proof))
-    #logger.info('                             X-Wopi_ProofOld = {}'.format(proofOld))
-    #logger.info('                             TimeStamp =       {}'.format(timeStamp))
-    #logger.info('                             URL =             {}'.format(url))
-
-    check_data = pfkey.ProofKeyValidationInput(access_token, timeStamp, url, proof, proofOld)
-    if pkhelper.validate(check_data) is True and pfkey.verify_timestamp(timeStamp) is True:
-        logger.info('proof key check passed.')
-    else:
-        logger.info('proof key check return False.')
-        return Response(response='', status=500)
 
     if request.method == 'GET':
         #  wopi GetFile endpoint
@@ -156,13 +173,19 @@ def onlyoffice_file_content_view(**kwargs):
         data = request.data
         wburl = file_node.generate_waterbutler_url(direct=None, _internal=True) + '?kind=file'
         logger.debug('wburl = {}'.format(wburl))
-        response = requests.put(
-            wburl,
-            cookies=cookies,
-            data=data,
-        )
+        try:
+            response = requests.put(
+                wburl,
+                cookies=cookies,
+                data=data,
+            )
+            status_code = response.status_code
+            if status_code != 200:
+                logger.error('Waterbutler return error.')
+        except Exception as err:
+            logger.error(err)
 
-        return Response(status=200)  # status 200
+        return Response(status=status_code)
 
 
 # Do not add decorator, or else online editor will not open.
@@ -192,17 +215,18 @@ def onlyoffice_lock_file(**kwargs):
 def onlyoffice_edit_by_onlyoffice(**kwargs):
     file_id = kwargs['file_id']
     cookie = request.cookies.get(websettings.COOKIE_NAME)
-    logger.debug('cookie = {}'.format(cookie))
+    #logger.debug('cookie = {}'.format(cookie))
+    #logger.info('cookie = {}'.format(cookie))
 
     # file_id -> fileinfo
     file_node = BaseFileNode.load(file_id)
     if file_node is None:
         logger.error('BaseFileNode None')
-        return
+        return Response(response='', status=500)
 
     ext = os.path.splitext(file_node.name)[1][1:]
-    access_token = cookie
-    # access_token ttl (ms).  Arrange this parameter suitable value.
+    access_token = token.encrypt(cookie, file_id)
+    # access_token ttl (ms)
     token_ttl = (time.time() + settings.WOPI_TOKEN_TTL) * 1000
 
     wopi_client_host = settings.WOPI_CLIENT_ONLYOFFICE
@@ -220,12 +244,14 @@ def onlyoffice_edit_by_onlyoffice(**kwargs):
 
     # logger.info('edit_by_online.index_view wopi_url = {}'.format(wopi_url))
 
+    # Get public key for proof-key check from onlyoffice server, if did not have yet.
     if pkhelper.hasKey() is False:
         proof_key = onlyoffice_util.get_proof_key(wopi_client_host)
         if proof_key is not None:
             pkhelper.setKey(proof_key)
             logger.info('edit_by_onlyoffice pkhelper key initialized.')
 
+    logger.info('edit_by_online.index_view wopi_url = {}'.format(wopi_url))
     context = {
         'wopi_url': wopi_url,
         'access_token': access_token,

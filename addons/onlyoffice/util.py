@@ -3,9 +3,10 @@ import logging
 import requests
 from lxml import etree
 from osf.models import BaseFileNode, OSFUser
+from requests.exceptions import RequestException
 
+from . import settings
 from . import proof_key as pfkey
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,12 +28,16 @@ def get_user_info(cookie):
 def get_file_info(file_node, file_version, cookies):
     wburl = file_node.generate_waterbutler_url(version=file_version, meta='', _internal=True)
     logger.debug('wburl = {}'.format(wburl))
-    response = requests.get(
-        wburl,
-        headers={'content-type': 'application/json'},
-        cookies=cookies
-    )
-    if response.status_code != 200:
+
+    try:
+        response = requests.get(
+            wburl,
+            headers={'content-type': 'application/json'},
+            cookies=cookies
+        )
+        response.raise_for_status()
+    except RequestException as e:
+        logger.error('get_file_info = {}'.format(e))
         return None
 
     file_data = response.json().get('data')
@@ -71,11 +76,19 @@ def _ext_to_app_name_onlyoffice(ext):
     return app_name
 
 
-def get_onlyoffice_url(server, mode, ext):
-    response = requests.get(server + '/hosting/discovery')
-    discovery = response.text
-    if not discovery:
+def _get_onlyoffice_discovery(server):
+    try:
+        response = requests.get(server + '/hosting/discovery')
+        response.raise_for_status()
+    except RequestException as e:
         logger.error('No able to retrieve the discovery.xml for onlyoffice.')
+        return None
+    return response.text
+
+
+def get_onlyoffice_url(server, mode, ext):
+    discovery = _get_onlyoffice_discovery(server)
+    if not discovery:
         return None
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
@@ -109,10 +122,8 @@ def get_onlyoffice_url(server, mode, ext):
 
 
 def get_proof_key(server):
-    response = requests.get(server + '/hosting/discovery')
-    discovery = response.text
+    discovery = _get_onlyoffice_discovery(server)
     if not discovery:
-        logger.error('No able to retrieve the discovery.xml for onlyoffice.')
         return None
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
@@ -129,7 +140,7 @@ def get_proof_key(server):
         exponent = res.get(f'exponent')
         oexponent = res.get(f'oldexponent')
 
-    discovery = pfkey.ProofKeyDiscoveryData(
+    keydata = pfkey.ProofKeyDiscoveryData(
         value=val,
         modulus=modulus,
         exponent=exponent,
@@ -137,4 +148,33 @@ def get_proof_key(server):
         oldmodulus=omodulus,
         oldexponent=oexponent)
 
-    return discovery
+    return keydata
+
+
+def check_proof_key(pkhelper, request, access_token):
+    url = request.url
+    proof = request.headers.get('X-Wopi-Proof')
+    proofOld = request.headers.get('X-Wopi-ProofOld')
+    timeStamp = int(request.headers.get('X-Wopi-TimeStamp'))
+
+    #logger.info('file_content_view get header X-Wopi Proof =    {}'.format(proof))
+    #logger.info('                             X-Wopi_ProofOld = {}'.format(proofOld))
+    #logger.info('                             TimeStamp =       {}'.format(timeStamp))
+    #logger.info('                             URL =             {}'.format(url))
+
+    if pkhelper.hasKey() is False:
+        proof_key = get_proof_key(settings.WOPI_CLIENT_ONLYOFFICE)
+        if proof_key is not None:
+            pkhelper.setKey(proof_key)
+            logger.info('check_proof_key pkhelper key initialized.')
+        else:
+            return False
+
+    check_data = pfkey.ProofKeyValidationInput(access_token, timeStamp, url, proof, proofOld)
+
+    if pkhelper.validate(check_data) is True and pfkey.verify_timestamp(timeStamp) is True:
+        logger.info('proof key check passed.')
+        return True
+    else:
+        logger.info('proof key check return False.')
+        return False
