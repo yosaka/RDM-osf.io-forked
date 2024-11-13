@@ -18,10 +18,10 @@ token_schema = {
         "exp" : {"type" : "number"},
         "data" : {
             "type": "object",
-            "required": ["auth", "fileid"],
+            "required": ["auth", "file_id"],
             "properties" : {
                 "auth" : {"type" : "string"},
-                "fileid" : {"type" : "string"}
+                "file_id" : {"type" : "string"}
             }
         }
     }
@@ -46,7 +46,7 @@ def encrypt(cookie, file_id):
         {
             'data' : {
                 'auth': cookie,
-                'fileid': file_id
+                'file_id': file_id
             },
             'exp': int(datetime.now(timezone.utc).timestamp() +
                        timedelta(seconds=settings.WOPI_TOKEN_TTL).seconds) +
@@ -79,9 +79,9 @@ def check_token(jsonobj, file_id):
         return False
 
     # file_id check
-    if file_id != jsonobj['data']['fileid']:
+    if file_id != jsonobj['data']['file_id']:
         logger.info('token file_id check failed.')
-        logger.info('file_id, token file_id : {}  {}'.format(file_id, jsonobj['data']['fileid']))
+        logger.info('file_id, token file_id : {}  {}'.format(file_id, jsonobj['data']['file_id']))
         return False
 
     # expiration check
