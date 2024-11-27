@@ -1,7 +1,7 @@
 import jwe
 import jwt
 
-from jsonschema import validate
+import jsonschema
 from datetime import datetime, timezone, timedelta
 import logging
 
@@ -34,7 +34,7 @@ def _get_timestamp():
 
 def _check_schema(token):
     try:
-        validate(instance=token, schema=token_schema)
+        jsonschema.validate(instance=token, schema=token_schema)
         return True
     except jsonschema.exceptions.ValidationError as e:
         logger.info('token schema error : {}'.format(e))
