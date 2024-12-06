@@ -12,22 +12,27 @@ logger = logging.getLogger(__name__)
 
 def get_user_info(cookie):
     user = OSFUser.from_cookie(cookie)
-    user_info = None
     if user:
-        # summary = user.get_summary()
         user_info = {
             'user_id': user._id,
             'full_name': user.display_full_name(),
             'display_name': user.get_summary().get('user_display_name')
         }
-        # logger.info('get_user_info : user id = {}, fullname = {}, display_name = {}'
-        #             .format(user._id, user_info['full_name'], user_info['display_name']))
+    else:
+        logger.warning('onlyoffice: OSFUser.from_cookie returned None.')
+        user_info = {
+            'user_id': '',
+            'full_name': '',
+            'display_name': ''
+        }
+    # logger.info('onlyoffice: get_user_info : user id = {}, fullname = {}, display_name = {}'
+    #             .format(user._id, user_info['full_name'], user_info['display_name']))
     return user_info
 
 
 def get_file_info(file_node, file_version, cookies):
     wburl = file_node.generate_waterbutler_url(version=file_version, meta='', _internal=True)
-    logger.debug('wburl = {}'.format(wburl))
+    logger.debug('onlyoffice: wburl = {}'.format(wburl))
 
     try:
         response = requests.get(
@@ -37,7 +42,7 @@ def get_file_info(file_node, file_version, cookies):
         )
         response.raise_for_status()
     except RequestException as e:
-        logger.error('get_file_info = {}'.format(e))
+        logger.debug('onlyoffice: get_file_info = {}'.format(e))
         return None
 
     file_data = response.json().get('data')
@@ -81,7 +86,7 @@ def _get_onlyoffice_discovery(server):
         response = requests.get(server + '/hosting/discovery')
         response.raise_for_status()
     except RequestException as e:
-        logger.error('No able to retrieve the discovery.xml for onlyoffice.')
+        logger.warning('onlyoffice: Could not get discovery message from onlyoffice.')
         return None
     return response.text
 
@@ -93,12 +98,12 @@ def get_onlyoffice_url(server, mode, ext):
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
-        logger.error('The retrieved discovery.xml file is not a valid XML file')
+        logger.warning('onlyoffice: Discovery.xml is not a valid XML.')
         return None
 
     app_name = _ext_to_app_name_onlyoffice(ext)
     if app_name is None:
-        logger.error('Not supported file extension for editting.')
+        logger.warning('onlyoffice: Not supported file extension for editting.')
         return None
 
     result = parsed.xpath(f"/wopi-discovery/net-zone/app[@name='{app_name}']/action")
@@ -114,7 +119,7 @@ def get_onlyoffice_url(server, mode, ext):
             break
 
     if online_url == '':
-        logger.error('Supported url not found.')
+        logger.warning('onlyoffice: Supported url not found.')
         return None
 
     online_url = online_url[:online_url.index('?') + 1]
@@ -128,7 +133,7 @@ def get_proof_key(server):
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
-        logger.error('The retrieved discovery.xml file is not a valid XML file')
+        logger.warning('onlyoffice: Discovery.xml is not a valid XML.')
         return None
 
     result = parsed.xpath(f'/wopi-discovery/proof-key')
@@ -166,15 +171,15 @@ def check_proof_key(pkhelper, request, access_token):
         proof_key = get_proof_key(settings.WOPI_CLIENT_ONLYOFFICE)
         if proof_key is not None:
             pkhelper.setKey(proof_key)
-            logger.info('check_proof_key pkhelper key initialized.')
+            # logger.info('onlyoffice: check_proof_key pkhelper key initialized.')
         else:
             return False
 
     check_data = pfkey.ProofKeyValidationInput(access_token, timeStamp, url, proof, proofOld)
 
     if pkhelper.validate(check_data) is True and pfkey.verify_timestamp(timeStamp) is True:
-        logger.info('proof key check passed.')
+        # logger.info('onlyoffice: proof key check passed.')
         return True
     else:
-        logger.info('proof key check return False.')
+        logger.warning('onlyoffice: proof key check return False.')
         return False
