@@ -43,8 +43,9 @@ def onlyoffice_check_file_info(**kwargs):
 
     cookie = token.get_cookie(jsonobj)    
     user_info = onlyoffice_util.get_user_info(cookie)
-    file_node = BaseFileNode.load(file_id)
-    if file_node is None:
+    try:
+        file_node = BaseFileNode.objects.get(_id=file_id)
+    except Exception:
         logger.warning('onlyoffice: BaseFileNode None')
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
@@ -128,8 +129,9 @@ def onlyoffice_file_content_view(**kwargs):
 
     cookie = token.get_cookie(jsonobj)
     user_info = onlyoffice_util.get_user_info(cookie)
-    file_node = BaseFileNode.load(file_id)
-    if file_node is None:
+    try:
+        file_node = BaseFileNode.objects.get(_id=file_id)
+    except Exception:
         logger.warning('onlyoffice: BaseFileNode None')
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
@@ -216,13 +218,11 @@ def onlyoffice_edit_by_onlyoffice(**kwargs):
     file_id = kwargs['file_id']
     cookie = request.cookies.get(websettings.COOKIE_NAME)
     # logger.info('onlyoffice: cookie = {}'.format(cookie))
-
-    # file_id -> fileinfo
-    file_node = BaseFileNode.load(file_id)
-    if file_node is None:
+    try:
+        file_node = BaseFileNode.objects.get(_id=file_id)
+    except Exception:
         logger.warning('onlyoffice: BaseFileNode None')
         return Response(response='', status=500)
-
     ext = os.path.splitext(file_node.name)[1][1:]
     access_token = token.encrypt(cookie, file_id)
     # access_token ttl (ms)
