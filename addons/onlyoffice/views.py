@@ -41,7 +41,7 @@ def onlyoffice_check_file_info(**kwargs):
     if token.check_token(jsonobj, file_id) is False:
         return Response(response='', status=500)
 
-    cookie = token.get_cookie(jsonobj)    
+    cookie = token.get_cookie(jsonobj)
     user_info = onlyoffice_util.get_user_info(cookie)
     try:
         file_node = BaseFileNode.objects.get(_id=file_id)
