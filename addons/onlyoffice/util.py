@@ -85,7 +85,7 @@ def _get_onlyoffice_discovery(server):
     try:
         response = requests.get(server + '/hosting/discovery')
         response.raise_for_status()
-    except RequestException as e:
+    except RequestException:
         logger.warning('onlyoffice: Could not get discovery message from onlyoffice.')
         return None
     return response.text
