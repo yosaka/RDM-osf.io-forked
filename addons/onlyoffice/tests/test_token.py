@@ -13,8 +13,8 @@ from datetime import datetime, timezone, timedelta
 
 from .. import settings
 
-Cookie = "67890f9f68b3c544fdd08572.LVImKq5n7UYcIzIGP1NX0hYLwME"
-File_id = "660a5294e3c53a000a8165ed"
+Cookie = '67890f9f68b3c544fdd08572.LVImKq5n7UYcIzIGP1NX0hYLwME'
+File_id = '660a5294e3c53a000a8165ed'
 
 class TestOnlyofficeToken(OsfTestCase):
     def test_case1(self):
