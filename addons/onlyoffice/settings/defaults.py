@@ -1,4 +1,3 @@
-import os
 from website import settings as osf_settings
 
 # SECURITY WARNING: don't run with debug turned on in production!

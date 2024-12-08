@@ -49,7 +49,7 @@ def onlyoffice_check_file_info(**kwargs):
         logger.warning('onlyoffice: BaseFileNode None')
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
-    cookies = { websettings.COOKIE_NAME: cookie }
+    cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     filename = '' if file_info is None else file_info['name']
 
@@ -135,7 +135,7 @@ def onlyoffice_file_content_view(**kwargs):
         logger.warning('onlyoffice: BaseFileNode None')
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
-    cookies = { websettings.COOKIE_NAME: cookie }
+    cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     filename = '' if file_info is None else file_info['name']
 

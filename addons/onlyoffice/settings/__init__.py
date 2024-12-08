@@ -1,6 +1,5 @@
 import os
 import warnings
-import itertools
 
 from .defaults import *  # noqa
 

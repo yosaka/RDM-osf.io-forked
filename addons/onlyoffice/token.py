@@ -50,7 +50,7 @@ def encrypt(cookie, file_id):
             },
             'exp': int(datetime.now(timezone.utc).timestamp() +
                        timedelta(seconds=settings.WOPI_TOKEN_TTL).seconds) +
-                       settings.WOPI_EXPIRATION_TIMER_DELAY
+            settings.WOPI_EXPIRATION_TIMER_DELAY
         },
         settings.OFFICESERVER_JWT_SECRET, algorithm=settings.OFFICESERVER_JWT_ALGORITHM)
     encstr = jwe.encrypt(jwte, OFFICESERVER_JWE_KEY).decode()
@@ -62,7 +62,7 @@ def decrypt(encstr):
     try:
         decstr = jwe.decrypt(encstr.encode('utf-8'), OFFICESERVER_JWE_KEY)
         jsonobj = jwt.decode(decstr, settings.OFFICESERVER_JWT_SECRET, algorithms=settings.OFFICESERVER_JWT_ALGORITHM)
-    except Exception as e:
+    except Exception:
         logger.warning('onlyoffice: token decrypt failed.')
         jsonobj = None
     return jsonobj
