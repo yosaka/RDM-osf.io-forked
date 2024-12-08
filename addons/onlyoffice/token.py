@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 OFFICESERVER_JWE_KEY = jwe.kdf(settings.OFFICESERVER_JWE_SECRET.encode('utf-8'), settings.OFFICESERVER_JWE_SALT.encode('utf-8'))
 
 token_schema = {
-    "type": "object",
-    "required": ["exp", "data"],
-    "properties": {
-        "exp" : {"type" : "number"},
-        "data" : {
-            "type": "object",
-            "required": ["auth", "file_id"],
-            "properties" : {
-                "auth" : {"type" : "string"},
-                "file_id" : {"type" : "string"}
+    'type': 'object',
+    'required': ['exp', 'data'],
+    'properties': {
+        'exp': {'type': 'number'},
+        'data': {
+            'type': 'object',
+            'required': ['auth', 'file_id'],
+            'properties': {
+                'auth': {'type': 'string'},
+                'file_id': {'type': 'string'}
             }
         }
     }
@@ -44,7 +44,7 @@ def _check_schema(token):
 def encrypt(cookie, file_id):
     jwte = jwt.encode(
         {
-            'data' : {
+            'data': {
                 'auth': cookie,
                 'file_id': file_id
             },
