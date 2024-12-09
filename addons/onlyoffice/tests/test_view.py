@@ -92,7 +92,7 @@ class TestOnlyofficeAddon(OsfTestCase):
         mock_file_info = {'name': 'filename.docx'}
         mock_access_token = {websettings.COOKIE_NAME: 'cookie'}
 
-        with mock.patch.object(BaseFileNode, 'load', return_value=mock_filenode):
+        with mock.patch.object(BaseFileNode.objects, 'get', return_value=mock_filenode):
             with mock.patch.object(request.args, 'get', return_value=mock_access_token):
                 with mock.patch.object(onlyoffice_util, 'get_user_info', return_value=mock_user_info):
                     with mock.patch.object(onlyoffice_token, 'decrypt', return_value=mock_jsonobj):
