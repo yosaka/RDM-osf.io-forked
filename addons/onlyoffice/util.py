@@ -3,36 +3,46 @@ import logging
 import requests
 from lxml import etree
 from osf.models import BaseFileNode, OSFUser
+from requests.exceptions import RequestException
 
+from . import settings
 from . import proof_key as pfkey
-
 logger = logging.getLogger(__name__)
 
 
 def get_user_info(cookie):
     user = OSFUser.from_cookie(cookie)
-    user_info = None
     if user:
-        # summary = user.get_summary()
         user_info = {
             'user_id': user._id,
             'full_name': user.display_full_name(),
             'display_name': user.get_summary().get('user_display_name')
         }
-        # logger.info('get_user_info : user id = {}, fullname = {}, display_name = {}'
-        #             .format(user._id, user_info['full_name'], user_info['display_name']))
+    else:
+        logger.warning('onlyoffice: OSFUser.from_cookie returned None.')
+        user_info = {
+            'user_id': '',
+            'full_name': '',
+            'display_name': ''
+        }
+    # logger.info('onlyoffice: get_user_info : user id = {}, fullname = {}, display_name = {}'
+    #             .format(user._id, user_info['full_name'], user_info['display_name']))
     return user_info
 
 
 def get_file_info(file_node, file_version, cookies):
     wburl = file_node.generate_waterbutler_url(version=file_version, meta='', _internal=True)
-    logger.debug('wburl = {}'.format(wburl))
-    response = requests.get(
-        wburl,
-        headers={'content-type': 'application/json'},
-        cookies=cookies
-    )
-    if response.status_code != 200:
+    logger.debug('onlyoffice: wburl = {}'.format(wburl))
+
+    try:
+        response = requests.get(
+            wburl,
+            headers={'content-type': 'application/json'},
+            cookies=cookies
+        )
+        response.raise_for_status()
+    except RequestException as e:
+        logger.debug('onlyoffice: get_file_info = {}'.format(e))
         return None
 
     file_data = response.json().get('data')
@@ -71,21 +81,29 @@ def _ext_to_app_name_onlyoffice(ext):
     return app_name
 
 
+def _get_onlyoffice_discovery(server):
+    try:
+        response = requests.get(server + '/hosting/discovery')
+        response.raise_for_status()
+    except RequestException:
+        logger.warning('onlyoffice: Could not get discovery message from onlyoffice.')
+        return None
+    return response.text
+
+
 def get_onlyoffice_url(server, mode, ext):
-    response = requests.get(server + '/hosting/discovery')
-    discovery = response.text
+    discovery = _get_onlyoffice_discovery(server)
     if not discovery:
-        logger.error('No able to retrieve the discovery.xml for onlyoffice.')
         return None
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
-        logger.error('The retrieved discovery.xml file is not a valid XML file')
+        logger.warning('onlyoffice: Discovery.xml is not a valid XML.')
         return None
 
     app_name = _ext_to_app_name_onlyoffice(ext)
     if app_name is None:
-        logger.error('Not supported file extension for editting.')
+        logger.warning('onlyoffice: Not supported file extension for editting.')
         return None
 
     result = parsed.xpath(f"/wopi-discovery/net-zone/app[@name='{app_name}']/action")
@@ -101,7 +119,7 @@ def get_onlyoffice_url(server, mode, ext):
             break
 
     if online_url == '':
-        logger.error('Supported url not found.')
+        logger.warning('onlyoffice: Supported url not found.')
         return None
 
     online_url = online_url[:online_url.index('?') + 1]
@@ -109,15 +127,13 @@ def get_onlyoffice_url(server, mode, ext):
 
 
 def get_proof_key(server):
-    response = requests.get(server + '/hosting/discovery')
-    discovery = response.text
+    discovery = _get_onlyoffice_discovery(server)
     if not discovery:
-        logger.error('No able to retrieve the discovery.xml for onlyoffice.')
         return None
 
     parsed = etree.fromstring(bytes(discovery, encoding='utf-8'))
     if parsed is None:
-        logger.error('The retrieved discovery.xml file is not a valid XML file')
+        logger.warning('onlyoffice: Discovery.xml is not a valid XML.')
         return None
 
     result = parsed.xpath(f'/wopi-discovery/proof-key')
@@ -129,7 +145,7 @@ def get_proof_key(server):
         exponent = res.get(f'exponent')
         oexponent = res.get(f'oldexponent')
 
-    discovery = pfkey.ProofKeyDiscoveryData(
+    keydata = pfkey.ProofKeyDiscoveryData(
         value=val,
         modulus=modulus,
         exponent=exponent,
@@ -137,4 +153,33 @@ def get_proof_key(server):
         oldmodulus=omodulus,
         oldexponent=oexponent)
 
-    return discovery
+    return keydata
+
+
+def check_proof_key(pkhelper, request, access_token):
+    url = request.url
+    proof = request.headers.get('X-Wopi-Proof')
+    proofOld = request.headers.get('X-Wopi-ProofOld')
+    timeStamp = int(request.headers.get('X-Wopi-TimeStamp'))
+
+    #logger.info('file_content_view get header X-Wopi Proof =    {}'.format(proof))
+    #logger.info('                             X-Wopi_ProofOld = {}'.format(proofOld))
+    #logger.info('                             TimeStamp =       {}'.format(timeStamp))
+    #logger.info('                             URL =             {}'.format(url))
+
+    if pkhelper.hasKey() is False:
+        proof_key = get_proof_key(settings.WOPI_CLIENT_ONLYOFFICE)
+        if proof_key is not None:
+            pkhelper.setKey(proof_key)
+            # logger.info('onlyoffice: check_proof_key pkhelper key initialized.')
+        else:
+            return False
+
+    check_data = pfkey.ProofKeyValidationInput(access_token, timeStamp, url, proof, proofOld)
+
+    if pkhelper.validate(check_data) is True and pfkey.verify_timestamp(timeStamp) is True:
+        # logger.info('onlyoffice: proof key check passed.')
+        return True
+    else:
+        logger.warning('onlyoffice: proof key check return False.')
+        return False

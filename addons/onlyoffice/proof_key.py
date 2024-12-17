@@ -9,9 +9,6 @@ from Crypto.Signature import PKCS1_v1_5
 
 from datetime import datetime, timezone
 
-import logging
-logger = logging.getLogger(__name__)
-
 
 """
 The MIT License (MIT)
@@ -119,7 +116,6 @@ class ProofKeyHelper(object):
             self.current_key = generate_key(discovery_data.modulus, discovery_data.exponent)
             self.old_key = generate_key(discovery_data.oldmodulus, discovery_data.oldexponent)
             self.key_registered = True
-        logger.info('proof key helper initialized.')
 
     def setKey(self, discovery_data):
         self.current_key = generate_key(discovery_data.modulus, discovery_data.exponent)
