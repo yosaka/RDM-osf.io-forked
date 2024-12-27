@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from flask import request, Response
+from rest_framework import status as http_status
 import logging
 
 import requests
 import os
 import time
+from framework.exceptions import HTTPError
+from framework.auth.decorators import must_be_logged_in
 from osf.models import BaseFileNode
 
 from . import util as onlyoffice_util
@@ -12,8 +15,6 @@ from . import proof_key as pfkey
 from . import settings
 from . import token
 from website import settings as websettings
-
-from framework.auth.decorators import must_be_logged_in
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +47,19 @@ def onlyoffice_check_file_info(**kwargs):
     try:
         file_node = BaseFileNode.objects.get(_id=file_id)
     except Exception:
-        logger.warning('onlyoffice: BaseFileNode None')
+        logger.warning('onlyoffice: user: {} BaseFileNode None.'.format(user_info['user_id']))
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
     cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
-    filename = '' if file_info is None else file_info['name']
+    if file_info is None:
+        return Response(response='', status=500)
 
     logger.info('ONLYOFFICE: file opened : user id = {}, fullname = {}, file_name = {}'
-                .format(user_info['user_id'], user_info['full_name'], filename))
+                .format(user_info['user_id'], user_info['full_name'], file_info['name']))
 
     res = {
-        'BaseFileName': filename,
+        'BaseFileName': file_info['name'],
         'Version': file_version,
         #'ReadOnly': True,
         'UserCanReview': True,
@@ -132,12 +134,13 @@ def onlyoffice_file_content_view(**kwargs):
     try:
         file_node = BaseFileNode.objects.get(_id=file_id)
     except Exception:
-        logger.warning('onlyoffice: BaseFileNode None')
+        logger.warning('onlyoffice: user: {} BaseFileNode None.'.format(user_info['user_id']))
         return Response(response='', status=500)
     file_version = onlyoffice_util.get_file_version(file_id)
     cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
-    filename = '' if file_info is None else file_info['name']
+    if file_info is None:
+        return Response(response='', status=500)
 
     # logger.info('onlyoffice: file_content_view: method, file_id, access_token = {} {} {}'.format(request.method, file_id, access_token))
     # logger.info('onlyoffice: waterbutler url = {}'.format(websettings.WATERBUTLER_URL))
@@ -158,7 +161,7 @@ def onlyoffice_file_content_view(**kwargs):
             if status_code == 200:
                 content = response.raw
             else:
-                logger.warning('onlyoffice: Waterbutler return error.')
+                logger.warning('onlyoffice: user: {} Waterbutler return error.'.format(user_info['user_id']))
         except Exception as err:
             logger.warning(err)
             return
@@ -168,7 +171,7 @@ def onlyoffice_file_content_view(**kwargs):
     if request.method == 'POST':
         #  wopi PutFile endpoint
         logger.info('ONLYOFFICE: file saved  : user id = {}, fullname = {}, file_name = {}'
-                    .format(user_info['user_id'], user_info['full_name'], filename))
+                    .format(user_info['user_id'], user_info['full_name'], file_info['name']))
         if not request.data:
             return Response(response='Not possible to get the file content.', status=401)
 
@@ -183,7 +186,7 @@ def onlyoffice_file_content_view(**kwargs):
             )
             status_code = response.status_code
             if status_code != 200:
-                logger.warning('onlyoffice: Waterbutler return error.')
+                logger.warning('onlyoffice: user: {} Waterbutler return error.'.format(user_info['user_id']))
         except Exception as err:
             logger.warning(err)
 
@@ -217,12 +220,22 @@ def onlyoffice_lock_file(**kwargs):
 def onlyoffice_edit_by_onlyoffice(**kwargs):
     file_id = kwargs['file_id']
     cookie = request.cookies.get(websettings.COOKIE_NAME)
-    # logger.info('onlyoffice: cookie = {}'.format(cookie))
+    # logger.debug('onlyoffice: cookie = {}'.format(cookie))
     try:
         file_node = BaseFileNode.objects.get(_id=file_id)
     except Exception:
-        logger.warning('onlyoffice: BaseFileNode None')
+        logger.warning('onlyoffice: BaseFileNode None.')
         return Response(response='', status=500)
+
+    # logger.debug('onlyoffice: edit_by_onlyoffice filenode.target.id = {}'.format(file_node.target._id))
+
+    nid = file_node.target._id
+    if onlyoffice_util.check_permission(cookie, nid) is False:
+        logger.warning('onlyoffice: edit_by_onlyoffice check_permission return False. nid: {}'.format(nid))
+        raise HTTPError(http_status.HTTP_403_FORBIDDEN, data=dict(
+            message_short='Forbidden',
+            message_long='Direct access to file under read only project is not allowed.'))
+
     ext = os.path.splitext(file_node.name)[1][1:]
     access_token = token.encrypt(cookie, file_id)
     # access_token ttl (ms)

@@ -2,13 +2,18 @@
 import logging
 import requests
 from lxml import etree
-from osf.models import BaseFileNode, OSFUser
+from osf.models import AbstractNode, BaseFileNode, OSFUser
+from osf.utils.permissions import WRITE
 from requests.exceptions import RequestException
+
+from framework.database import get_or_http_error
 
 from . import settings
 from . import proof_key as pfkey
+
 logger = logging.getLogger(__name__)
 
+_load_node_or_fail = lambda pk: get_or_http_error(AbstractNode, pk)
 
 def get_user_info(cookie):
     user = OSFUser.from_cookie(cookie)
@@ -42,7 +47,7 @@ def get_file_info(file_node, file_version, cookies):
         )
         response.raise_for_status()
     except RequestException as e:
-        logger.debug('onlyoffice: get_file_info = {}'.format(e))
+        logger.warning('onlyoffice: get_file_info = {}'.format(e))
         return None
 
     file_data = response.json().get('data')
@@ -183,3 +188,14 @@ def check_proof_key(pkhelper, request, access_token):
     else:
         logger.warning('onlyoffice: proof key check return False.')
         return False
+
+
+def check_permission(cookie, nid):
+    target = _load_node_or_fail(nid)
+    user = OSFUser.from_cookie(cookie)
+    logger.info('check_permission user : {}'.format(user._id))
+    if not user:
+        logger.warning('onlyoffice: check_permission OSFUser return None')
+        return False
+
+    return target.has_permission(user, WRITE)
