@@ -2,18 +2,14 @@
 import logging
 import requests
 from lxml import etree
-from osf.models import AbstractNode, BaseFileNode, OSFUser
+from osf.models import BaseFileNode, OSFUser
 from osf.utils.permissions import WRITE
 from requests.exceptions import RequestException
-
-from framework.database import get_or_http_error
 
 from . import settings
 from . import proof_key as pfkey
 
 logger = logging.getLogger(__name__)
-
-_load_node_or_fail = lambda pk: get_or_http_error(AbstractNode, pk)
 
 def get_user_info(cookie):
     user = OSFUser.from_cookie(cookie)
@@ -190,12 +186,15 @@ def check_proof_key(pkhelper, request, access_token):
         return False
 
 
-def check_permission(cookie, nid):
-    target = _load_node_or_fail(nid)
-    user = OSFUser.from_cookie(cookie)
-    logger.info('check_permission user : {}'.format(user._id))
+def check_permission(user, file_node, target):
     if not user:
-        logger.warning('onlyoffice: check_permission OSFUser return None')
+        logger.warning('onlyoffice: check_permission: no OSFUser')
+        return False
+    logger.info('check_permission user : {}'.format(user._id))
+
+    # SEE ALSO: addons/osfstorage/views.py:osfstorage_create_child()
+    # checkout: used for OsfStorage
+    if file_node.checkout and file_node.checkout._id != user._id:
         return False
 
     return target.has_permission(user, WRITE)
