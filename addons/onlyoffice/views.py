@@ -65,7 +65,8 @@ def onlyoffice_check_file_info(**kwargs):
 
     res = {
         'BaseFileName': file_info['name'],
-        'Version': file_version,
+        #'Version': file_version,
+        'Version': file_info['mtime'],
         #'ReadOnly': True,
         'UserCanReview': True,
         'UserCanWrite': True,

@@ -62,10 +62,9 @@ def get_file_version(file_id):
     file_version = ''
     base_file_data = BaseFileNode.objects.filter(_id=file_id)
     if base_file_data.exists():
-        file_node = BaseFileNode.load(file_id)
-        if file_node.provider == 'osfstorage':
-            base_file_data = base_file_data.get()
-            file_versions = base_file_data.versions.all()
+        base_file_data = base_file_data.get()
+        file_versions = base_file_data.versions.all()
+        if file_versions is not None and file_versions.exists():
             file_version = file_versions.latest('id').identifier
     return file_version
 
