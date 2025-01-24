@@ -34,7 +34,11 @@ from website.settings import (
     CAS_SERVER_URL,
     OSF_MFA_URL,
     OSF_IAL2_STR,
+    OSF_AAL1_STR,
     OSF_AAL2_STR,
+    OSF_IAL2_VAR,
+    OSF_AAL1_VAR,
+    OSF_AAL2_VAR,
 )
 from website.util.quota import update_default_storage
 
@@ -179,10 +183,19 @@ class InstitutionAuthentication(BaseAuthentication):
         organization_name_ja = get_next(p_user, 'jao', 'jaOrganizationName')
         # affiliation: 'jaou' is friendlyName
         organizational_unit_ja = get_next(p_user, 'jaou', 'jaOrganizationalUnitName')
-        # @R2022-48 ial
-        ial = p_user.get('eduPersonAssurance')
-        # @R2022-48 aal
-        aal = p_user.get('Shib-AuthnContext-Class')
+        # @R2022-48 ial,aal
+        ial = None
+        aal = None
+        # @R-2024-AUTH01 eduPersonAssurance(multi value)
+        eduPersonAssurance = p_user.get('eduPersonAssurance')
+        if re.search(OSF_IAL2_STR, str(eduPersonAssurance)):
+            ial = OSF_IAL2_VAR
+        if re.search(OSF_AAL2_STR, str(eduPersonAssurance)):
+            aal = OSF_AAL2_VAR
+        elif re.search(OSF_AAL1_STR, str(eduPersonAssurance)):
+            aal = OSF_AAL1_VAR
+        else:
+            aal = p_user.get('Shib-AuthnContext-Class')
 
         # @R2022-48 loa + R-2023-55
         message = ''
@@ -207,7 +220,6 @@ class InstitutionAuthentication(BaseAuthentication):
                 if not re.search(OSF_AAL2_STR, str(aal)):
                     self.context['mfa_url'] = mfa_url
             elif loa.aal == 1:
-                # if not re.search('https://www.gakunin.jp/profile/AAL1', aal):
                 if not aal:
                     message = (
                         'Institution login failed: Does not meet the required AAL.<br />Please contact the IdP as the'
@@ -222,7 +234,6 @@ class InstitutionAuthentication(BaseAuthentication):
                     )
                     loa_flag = False
             elif loa.ial == 1:
-                # if not re.search('https://www.gakunin.jp/profile/IAL1', ial):
                 if not ial:
                     message = (
                         'Institution login failed: Does not meet the required IAL.<br />Please check the IAL of your'
