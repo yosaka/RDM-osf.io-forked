@@ -3,12 +3,13 @@ import logging
 import requests
 from lxml import etree
 from osf.models import BaseFileNode, OSFUser
+from osf.utils.permissions import WRITE
 from requests.exceptions import RequestException
 
 from . import settings
 from . import proof_key as pfkey
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 def get_user_info(cookie):
     user = OSFUser.from_cookie(cookie)
@@ -42,7 +43,7 @@ def get_file_info(file_node, file_version, cookies):
         )
         response.raise_for_status()
     except RequestException as e:
-        logger.debug('onlyoffice: get_file_info = {}'.format(e))
+        logger.warning('onlyoffice: get_file_info = {}'.format(e))
         return None
 
     file_data = response.json().get('data')
@@ -61,10 +62,9 @@ def get_file_version(file_id):
     file_version = ''
     base_file_data = BaseFileNode.objects.filter(_id=file_id)
     if base_file_data.exists():
-        file_node = BaseFileNode.load(file_id)
-        if file_node.provider == 'osfstorage':
-            base_file_data = base_file_data.get()
-            file_versions = base_file_data.versions.all()
+        base_file_data = base_file_data.get()
+        file_versions = base_file_data.versions.all()
+        if file_versions is not None and file_versions.exists():
             file_version = file_versions.latest('id').identifier
     return file_version
 
@@ -183,3 +183,17 @@ def check_proof_key(pkhelper, request, access_token):
     else:
         logger.warning('onlyoffice: proof key check return False.')
         return False
+
+
+def check_permission(user, file_node, target):
+    if not user:
+        logger.warning('onlyoffice: check_permission: no OSFUser')
+        return False
+    logger.info('check_permission user : {}'.format(user._id))
+
+    # SEE ALSO: addons/osfstorage/views.py:osfstorage_create_child()
+    # checkout: used for OsfStorage
+    if file_node.checkout and file_node.checkout._id != user._id:
+        return False
+
+    return target.has_permission(user, WRITE)
