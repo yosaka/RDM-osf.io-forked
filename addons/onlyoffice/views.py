@@ -54,7 +54,7 @@ def onlyoffice_check_file_info(**kwargs):
 
     logger.debug('onlyoffice: check_file_info file_id = {}, file_node.name = {}'.format(file_id, file_node.name))
 
-    file_version = onlyoffice_util.get_file_version(file_id)
+    file_version = onlyoffice_util.get_file_version(file_node)
     cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     if file_info is None:
@@ -150,9 +150,9 @@ def onlyoffice_file_content_view(**kwargs):
         logger.warning('onlyoffice: user: {} BaseFileNode None.'.format(user_info['user_id']))
         return Response(response='onlyoffice file_content_view exception in BaseFileNode.objects.get.', status=500)
 
-    # logger.info('onlyoffice: file_content_view file_id = {}, file_node.name = {}'.format(file_id, file_node.name))
+    logger.debug('onlyoffice: file_content_view file_id = {}, file_node.name = {}'.format(file_id, file_node.name))
 
-    file_version = onlyoffice_util.get_file_version(file_id)
+    file_version = onlyoffice_util.get_file_version(file_node)
     cookies = {websettings.COOKIE_NAME: cookie}
     file_info = onlyoffice_util.get_file_info(file_node, file_version, cookies)
     if file_info is None:

@@ -2,7 +2,7 @@
 import logging
 import requests
 from lxml import etree
-from osf.models import BaseFileNode, OSFUser
+from osf.models import OSFUser
 from osf.utils.permissions import WRITE
 from requests.exceptions import RequestException
 
@@ -58,12 +58,10 @@ def get_file_info(file_node, file_version, cookies):
     return file_info
 
 
-def get_file_version(file_id):
+def get_file_version(file_node):
     file_version = ''
-    base_file_data = BaseFileNode.objects.filter(_id=file_id)
-    if base_file_data.exists():
-        base_file_data = base_file_data.get()
-        file_versions = base_file_data.versions.all()
+    if file_node.provider == 'osfstorage':
+        file_versions = file_node.versions.all()
         if file_versions is not None and file_versions.exists():
             file_version = file_versions.latest('id').identifier
     return file_version
